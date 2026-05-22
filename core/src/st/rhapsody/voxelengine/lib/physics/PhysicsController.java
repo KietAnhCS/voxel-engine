@@ -139,7 +139,7 @@ public class PhysicsController {
 
         if (!playerInWater && jump) {
             if (characterController.onGround()) {
-                characterController.jump(new Vector3(0, 10f, 0));
+                characterController.jump(new Vector3(0, 36f, 0));
             }
         }
     }
