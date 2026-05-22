@@ -12,6 +12,7 @@ import com.badlogic.gdx.math.Matrix4;
 import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.math.collision.Ray;
 import com.badlogic.gdx.physics.bullet.Bullet;
+import com.badlogic.gdx.physics.bullet.BulletBase;
 import com.badlogic.gdx.physics.bullet.DebugDrawer;
 import com.badlogic.gdx.physics.bullet.collision.*;
 import com.badlogic.gdx.physics.bullet.dynamics.*;
@@ -21,6 +22,7 @@ import com.badlogic.gdx.physics.bullet.linearmath.btMotionState;
 import com.badlogic.gdx.utils.Array;
 import com.google.common.collect.ArrayListMultimap;
 import st.rhapsody.voxelengine.lib.render.BoxMesh;
+import st.rhapsody.voxelengine.lib.render.VoxelRender;
 import st.rhapsody.voxelengine.lib.terrain.World;
 import st.rhapsody.voxelengine.lib.terrain.block.Block;
 import st.rhapsody.voxelengine.lib.terrain.chunk.Chunk;
@@ -28,9 +30,13 @@ import st.rhapsody.voxelengine.test.terrain.block.BlockProvider;
 
 import java.util.*;
 
+/**
+ * Created by nicklas on 5/2/14.
+ */
 public class PhysicsController {
 
     private static final Object syncObject = new Object();
+
     private static final boolean DEBUG = false;
     private static final Vector3 gravity = new Vector3(0, -9.81f, 0);
 
@@ -64,12 +70,13 @@ public class PhysicsController {
     private static Array<btRigidBody> bodies = new Array<btRigidBody>();
     private static Array<btKinematicCharacterController> controllers = new Array<btKinematicCharacterController>();
 
+
     private final static short NOTHING = 0;
     private final static short WORLD = 1;
     private final static short PLAYER = 2;
+
     private final static short PLAYER_COLLIDES_WITH = WORLD;
     private final static short WORLD_COLLIDES_WITH = PLAYER;
-
     private static btKinematicCharacterController characterController;
     private static btPairCachingGhostObject playerGhostObject;
     private static btAxisSweep3 btSweep3;
@@ -81,11 +88,11 @@ public class PhysicsController {
     private static boolean playerInWater;
     private static boolean flight;
 
-    public static void init() {
-        if (btSweep3 == null || collisionConfiguration == null || dispatcher == null || solver == null || collissionWorld == null || dynamicBodies == null || meshes == null || worldInternalTickCallback == null) {
-            Bullet.init(true, true);
-            btSweep3 = new btAxisSweep3(new Vector3(-10000f, -10000f, -10000f), new Vector3(10000, 10000, 10000));
 
+    public static void init(){
+        if (btSweep3 == null || collisionConfiguration == null || dispatcher == null || solver == null || collissionWorld == null || dynamicBodies == null || meshes == null || worldInternalTickCallback == null) {
+            Bullet.init(true,true);
+            btSweep3 = new com.badlogic.gdx.physics.bullet.collision.btAxisSweep3(new Vector3(-1000f, -1000f, -1000f), new Vector3(1000, 1000, 1000));
             collisionConfiguration = new btDefaultCollisionConfiguration();
             dispatcher = new btCollisionDispatcher(collisionConfiguration);
             solver = new btSequentialImpulseConstraintSolver();
@@ -96,6 +103,7 @@ public class PhysicsController {
             entitiyRidgidBodies = new HashMap<btRigidBody, CollisionObject>();
             entitiyCollisionObjects = new HashMap<CollisionObject, btRigidBody>();
             meshes = new HashMap<Mesh, btRigidBody>();
+
             chunkMeshMap = ArrayListMultimap.create();
 
             if (DEBUG) {
@@ -103,29 +111,35 @@ public class PhysicsController {
             }
 
             worldInternalTickCallback = new WorldInternalTickCallback(collissionWorld);
+
             rayResultCallback = new ClosestRayResultCallback(Vector3.Zero, Vector3.Z);
+
         }
     }
 
     public static void movePlayer(Vector3 force, boolean jump) {
+
         if (playerInWater && jump) {
-            characterController.setGravity(new Vector3(0, -5.5f, 0));
+            if (characterController.onGround()) {
+                characterController.jump(new Vector3(0, 10f, 0));
+            } else {
+                force.y += 0.05f;
+            }
         }
+
         if (playerInWater && !jump) {
-            characterController.setGravity(new Vector3(0, 0.1f, 0));
+            characterController.setGravity(new Vector3(0, -0.1f, 0));
         }
+
         if (playerInWater) {
             force.scl(0.3f);
         }
 
         characterController.setWalkDirection(force);
 
-        // ĐÂY LÀ ĐOẠN NGĂN BẠN BỊ BAY MÀU KHỎI BẢN ĐỒ
         if (!playerInWater && jump) {
-            // CHỈ CHO PHÉP NHẢY KHI ĐANG ĐỨNG TRÊN MẶT ĐẤT
-            if (characterController.canJump()) {
-                characterController.setJumpSpeed(6f); // Tốc độ nhảy vừa phải
-                characterController.jump();
+            if (characterController.onGround()) {
+                characterController.jump(new Vector3(0, 10f, 0));
             }
         }
     }
@@ -143,26 +157,34 @@ public class PhysicsController {
     }
 
     static class WorldInternalTickCallback extends InternalTickCallback {
+
         WorldInternalTickCallback(btDynamicsWorld dynamicsWorld) {
             super(dynamicsWorld, true);
         }
 
         @Override
         public void onInternalTick(btDynamicsWorld dynamicsWorld, float timeStep) {
+
         }
     }
 
-    public static CollisionObject addEntity(float height, float width, Matrix4 transform) {
+    public static CollisionObject addEntity(float height, float width, Matrix4 transform){
+
         btBoxShape collisionShape = new btBoxShape(new Vector3(width / 2, height / 2, width / 2));
+
+
         btMotionState dynamicMotionState = new btDefaultMotionState();
         dynamicMotionState.setWorldTransform(transform);
         Vector3 dynamicInertia = new Vector3(0, 0, 0);
+
         collisionShape.calculateLocalInertia(1f, dynamicInertia);
+
 
         btRigidBody.btRigidBodyConstructionInfo dynamicConstructionInfo = new btRigidBody.btRigidBodyConstructionInfo(1f, dynamicMotionState, collisionShape, dynamicInertia);
         constructions.add(dynamicConstructionInfo);
 
         btRigidBody body = new btRigidBody(dynamicConstructionInfo);
+
         body.setActivationState(4);
         body.setContactProcessingThreshold(0.0f);
         body.setRestitution(0);
@@ -171,21 +193,29 @@ public class PhysicsController {
         body.setAngularFactor(Vector3.Zero);
         body.setContactCallbackFlag(2);
         body.setContactCallbackFilter(2);
+
         collissionWorld.addRigidBody(body);
 
+
         CollisionObject collisionObject = new CollisionObject();
+
         entitiyRidgidBodies.put(body, collisionObject);
-        entitiyCollisionObjects.put(collisionObject, body);
+        entitiyCollisionObjects.put(collisionObject,body);
+
+
         return collisionObject;
+
+
     }
 
-    public static void removeEntity(CollisionObject collisionObject) {
-        if (entitiyCollisionObjects.containsKey(collisionObject)) {
+    public static void removeEntity(CollisionObject collisionObject){
+        if (entitiyCollisionObjects.containsKey(collisionObject)){
             btRigidBody btRigidBody = entitiyCollisionObjects.get(collisionObject);
             collissionWorld.removeCollisionObject(btRigidBody);
             entitiyRidgidBodies.remove(btRigidBody);
         }
     }
+
 
     public static void addGroundMesh(Mesh mesh, Matrix4 transform, boolean nonColliadable) {
         synchronized (syncObject) {
@@ -198,27 +228,28 @@ public class PhysicsController {
             btBvhTriangleMeshShape btBvhTriangleMeshShape = new btBvhTriangleMeshShape(meshParts);
             shapes.add(btBvhTriangleMeshShape);
 
+            //btBoxShape collisionShape = new btBoxShape(new Vector3(8,8,8));
+
             btMotionState groundMotionState = new btDefaultMotionState();
             states.add(groundMotionState);
             groundMotionState.setWorldTransform(transform);
-
             btRigidBody.btRigidBodyConstructionInfo groundBodyConstructionInfo = new btRigidBody.btRigidBodyConstructionInfo(0, groundMotionState, btBvhTriangleMeshShape, new Vector3(0, 0, 0));
             constructions.add(groundBodyConstructionInfo);
+            //groundBodyConstructionInfo.setLinearDamping(0.2f);
             groundBodyConstructionInfo.setFriction(0);
-
+            //groundBodyConstructionInfo.setAngularDamping(0.0f);
             btRigidBody groundRigidBody = new btRigidBody(groundBodyConstructionInfo);
 
             if (!nonColliadable) {
-                collissionWorld.addRigidBody(groundRigidBody,
-                        (short) btBroadphaseProxy.CollisionFilterGroups.StaticFilter,
+                collissionWorld.addRigidBody(groundRigidBody, (short) btBroadphaseProxy.CollisionFilterGroups.StaticFilter,
                         (short) (btBroadphaseProxy.CollisionFilterGroups.CharacterFilter | btBroadphaseProxy.CollisionFilterGroups.DefaultFilter));
-            } else {
-                collissionWorld.addRigidBody(groundRigidBody,
-                        (short) 64,
+            }else{
+                collissionWorld.addRigidBody(groundRigidBody, (short) 64,
                         (short) (btBroadphaseProxy.CollisionFilterGroups.CharacterFilter | btBroadphaseProxy.CollisionFilterGroups.DefaultFilter));
             }
 
             entities.add(groundRigidBody);
+
             meshes.put(mesh, groundRigidBody);
         }
     }
@@ -230,6 +261,7 @@ public class PhysicsController {
                 collissionWorld.removeRigidBody(btRigidBody);
                 btRigidBody.dispose();
             }
+
             if (chunkMeshMap.containsValue(mesh)) {
                 chunkMeshMap.values().remove(mesh);
             }
@@ -246,35 +278,38 @@ public class PhysicsController {
         btSweep3.getOverlappingPairCache().setInternalGhostPairCallback(new btGhostPairCallback());
 
         capsuleShape = new btCapsuleShape(0.45f, 0.9f);
+
         playerGhostObject.setCollisionShape(capsuleShape);
         playerGhostObject.setCollisionFlags(btCollisionObject.CollisionFlags.CF_CHARACTER_OBJECT);
         characterController = new btKinematicCharacterController(playerGhostObject, capsuleShape, 0.25f);
 
         collissionWorld.addCollisionObject(playerGhostObject,
-                (short) btBroadphaseProxy.CollisionFilterGroups.CharacterFilter,
-                (short) (btBroadphaseProxy.CollisionFilterGroups.StaticFilter | btBroadphaseProxy.CollisionFilterGroups.DefaultFilter));
+                (short)btBroadphaseProxy.CollisionFilterGroups.CharacterFilter,
+                (short)(btBroadphaseProxy.CollisionFilterGroups.StaticFilter | btBroadphaseProxy.CollisionFilterGroups.DefaultFilter));
         collissionWorld.addAction(characterController);
+
         controllers.add(characterController);
+
+
     }
 
+
     public static void update(float delta) {
-        if (playerInWater) {
-            if (characterController.getGravity().y != 0.1f) {
-                characterController.setGravity(new Vector3(0, 0.1f, 0));
-            }
-        } else {
-            if (characterController.getGravity().y != -9.81f) {
-                characterController.setGravity(new Vector3(0, -9.81f, 0));
-            }
+
+        if (playerInWater && characterController.getGravity().y == -29.4f) {
+            characterController.setGravity(new Vector3(0, -0.1f, 0));
+        }
+        if (!playerInWater && (characterController.getGravity().y != -29.4f)) {
+            characterController.setGravity(new Vector3(0, -29.4f, 0));
         }
 
-        synchronized (syncObject) {
+        synchronized (syncObject){
             collissionWorld.stepSimulation(delta, 5);
         }
-
         numberOfTicks++;
-
         if (camera != null && usePhysicsForCamera) {
+
+
             if (DEBUG) {
                 Gdx.gl.glDisable(GL20.GL_DEPTH_TEST);
                 debugDrawer.getShapeRenderer().setProjectionMatrix(camera.combined);
@@ -291,7 +326,7 @@ public class PhysicsController {
             if (!playerInWater && (mov > 0.01f || mov < -0.01f)) {
                 headBob = 0.05 * MathUtils.sin((float) (numberOfTicks * 0.5 * MathUtils.PI / 7));
             }
-            tmp2.set(tmp.x, (float) (tmp.y + headBob + 0.7f), tmp.z);
+            tmp2.set(tmp.x, (float) (tmp.y+headBob+0.7f),tmp.z);
             camera.position.set(tmp2);
             previousPosition.set(tmp);
         }
@@ -299,46 +334,54 @@ public class PhysicsController {
         for (Map.Entry<btRigidBody, CollisionObject> object : entitiyRidgidBodies.entrySet()) {
             object.getKey().getWorldTransform().getTranslation(tmp);
             object.getValue().setPosition(tmp);
+
             object.getKey().applyCentralImpulse(object.getValue().getVelocity());
             object.getValue().resetVelocity();
         }
     }
 
-    public static void rayPick(int button) {
-        Ray pickRay = camera.getPickRay(Gdx.graphics.getWidth() / 2, Gdx.graphics.getHeight() / 2);
+
+    public static void rayPick(int button){
+
+        Ray pickRay = camera.getPickRay(Gdx.graphics.getWidth()/2, Gdx.graphics.getHeight()/2);
         rayFrom.set(pickRay.origin);
-        rayTo.set(new Vector3(pickRay.direction).scl(5f).add(rayFrom));
         rayTo.set(pickRay.direction.scl(5f).add(rayFrom));
+
 
         rayResultCallback.setCollisionObject(null);
         rayResultCallback.setClosestHitFraction(1f);
-        rayResultCallback.setCollisionFilterGroup((short) btBroadphaseProxy.CollisionFilterGroups.CharacterFilter);
+        rayResultCallback.setCollisionFilterGroup((short)btBroadphaseProxy.CollisionFilterGroups.CharacterFilter);
+
+
         rayResultCallback.setRayFromWorld(rayFrom);
         rayResultCallback.setRayToWorld(rayTo);
 
         collissionWorld.rayTest(rayFrom, rayTo, rayResultCallback);
 
-        if (rayResultCallback.hasHit()) {
+        if(rayResultCallback.hasHit()) {
+            System.out.println("collisionObject:" + rayResultCallback.getCollisionObject()+ " "+rayResultCallback.getFlags());
             rayResultCallback.getHitPointWorld(tmp);
             rayResultCallback.getHitNormalWorld(tmp2);
+            double hitPosDelX = Math.floor(tmp.x - tmp2.x/2);
+            double hitPosDelY = Math.floor(tmp.y - tmp2.y/2);
+            double hitPosDelZ = Math.floor(tmp.z - tmp2.z/2);
 
-            double hitPosDelX = Math.floor(tmp.x - tmp2.x / 2);
-            double hitPosDelY = Math.floor(tmp.y - tmp2.y / 2);
-            double hitPosDelZ = Math.floor(tmp.z - tmp2.z / 2);
+            double hitPosAddX = Math.floor(tmp.x + tmp2.x/2);
+            double hitPosAddY = Math.floor(tmp.y + tmp2.y/2);
+            double hitPosAddZ = Math.floor(tmp.z + tmp2.z/2);
 
-            double hitPosAddX = Math.floor(tmp.x + tmp2.x / 2);
-            double hitPosAddY = Math.floor(tmp.y + tmp2.y / 2);
-            double hitPosAddZ = Math.floor(tmp.z + tmp2.z / 2);
-
-            if (button == Input.Buttons.LEFT) {
+            if (button == Input.Buttons.LEFT){
                 World.setBlock((float) hitPosDelX, (float) hitPosDelY, (float) hitPosDelZ, BlockProvider.air, true);
             }
-            if (button == Input.Buttons.RIGHT) {
-                if (tmp.dst(camera.position) < 1.5f) return;
+            if (button == Input.Buttons.RIGHT){
+                if (tmp.dst(camera.position) < 1.5f){
+                    System.out.println(tmp.dst(camera.position));
+                    return;
+                }
                 Block block;
-                if (Gdx.input.isKeyPressed(Input.Keys.SHIFT_LEFT) || Gdx.input.isKeyPressed(Input.Keys.SHIFT_RIGHT)) {
+                if (Gdx.input.isKeyPressed(Input.Keys.SHIFT_LEFT) || Gdx.input.isKeyPressed(Input.Keys.SHIFT_RIGHT)){
                     block = BlockProvider.wall;
-                } else {
+                }else{
                     block = BlockProvider.light;
                 }
                 World.setBlock((float) hitPosAddX, (float) hitPosAddY, (float) hitPosAddZ, block, true);

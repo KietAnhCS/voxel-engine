@@ -104,27 +104,21 @@ public class CameraController extends InputAdapter {
         float deltaX = -Gdx.input.getDeltaX() * degreesPerPixel;
         float deltaY = -Gdx.input.getDeltaY() * degreesPerPixel;
 
-        // 1. Xoay ngang (Yaw) quay quanh trục Y tuyệt đối của thế giới, KHÔNG dùng camera.up
         camera.direction.rotate(Vector3.Y, deltaX);
 
-        // 2. Tìm trục xoay dọc (Pitch) bằng Cross Product
         tmp.set(camera.direction).crs(Vector3.Y).nor();
 
-        // 3. Tính góc ngước hiện tại (Pitch) bằng độ (Degrees)
         float currentPitch = (float) Math.toDegrees(Math.asin(camera.direction.y));
         float newPitch = currentPitch + deltaY;
 
-        // 4. Clamp (Khóa) góc Pitch trong khoảng [-89, 89] độ để tuyệt đối không bao giờ lật ngược
         if (newPitch > 89f) {
             deltaY = 89f - currentPitch;
         } else if (newPitch < -89f) {
             deltaY = -89f - currentPitch;
         }
 
-        // 5. Xoay dọc theo deltaY đã được điều chỉnh
         camera.direction.rotate(tmp, deltaY);
 
-        // 6. [QUAN TRỌNG] Luôn ép trục UP của camera hướng thẳng lên trời
         camera.up.set(Vector3.Y);
 
         previousCameraDirection.set(camera.direction);

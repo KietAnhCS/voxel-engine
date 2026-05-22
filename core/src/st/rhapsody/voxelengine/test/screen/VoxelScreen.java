@@ -6,6 +6,8 @@ import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.GL30;
 import com.badlogic.gdx.graphics.PerspectiveCamera;
 import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.g2d.BitmapFont;
+import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Vector3;
@@ -24,10 +26,23 @@ public class VoxelScreen implements Screen {
     private VoxelEngine voxelEngine;
     private TextureAtlas textureAtlas;
 
+    private SpriteBatch spriteBatch;
+    private BitmapFont font;
+
     @Override
     public void render(float delta) {
         clearOpenGL();
+
         voxelEngine.render(delta);
+
+        if (spriteBatch != null && font != null) {
+            spriteBatch.begin();
+            String coords = String.format("X: %.2f  Y: %.2f  Z: %.2f",
+                    camera.position.x, camera.position.y, camera.position.z);
+
+            font.draw(spriteBatch, coords, 10, Gdx.graphics.getHeight() - 10);
+            spriteBatch.end();
+        }
     }
 
     private void clearOpenGL() {
@@ -43,10 +58,10 @@ public class VoxelScreen implements Screen {
     @Override
     public void resize(int width, int height) {
         createCamera(width, height);
-        setup();
+        setup(width, height);
     }
 
-    private void setup() {
+    private void setup(int width, int height) {
         BlockProvider blockProvider = new BlockProvider();
         BiomeProvider biomeProvider = new BiomeProvider();
         ChunkProvider chunkProvider = new ChunkProvider(blockProvider, biomeProvider);
@@ -54,6 +69,12 @@ public class VoxelScreen implements Screen {
         textureAtlas = new TextureAtlas(Gdx.files.internal("data/textureatlas.atlas"));
         voxelEngine = new VoxelEngine(camera, blockProvider, chunkProvider, biomeProvider, textureAtlas);
         enableAnisotropy();
+
+        if (spriteBatch == null) {
+            spriteBatch = new SpriteBatch();
+            font = new BitmapFont();
+        }
+        spriteBatch.getProjectionMatrix().setToOrtho2D(0, 0, width, height);
     }
 
     private void enableAnisotropy() {
@@ -97,5 +118,8 @@ public class VoxelScreen implements Screen {
     public void dispose() {
         voxelEngine.dispose();
         textureAtlas.dispose();
+
+        if (spriteBatch != null) spriteBatch.dispose();
+        if (font != null) font.dispose();
     }
 }
