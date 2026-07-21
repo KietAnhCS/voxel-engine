@@ -5,7 +5,7 @@ android {
     compileSdkVersion 33
 
     defaultConfig {
-        applicationId "st.rhapsody.voxelengine.android"
+        applicationId "com.voxel.android"
         minSdkVersion 21
         targetSdkVersion 33
         versionCode 1
@@ -55,7 +55,7 @@ task copyAndroidNatives() {
 task runAndroid(type: Exec) {
     def adb = "$System.env.ANDROID_HOME/platform-tools/adb"
     commandLine "$adb", 'shell', 'am', 'start', '-n',
-            'st.rhapsody.voxelengine.android/st.rhapsody.voxelengine.android.AndroidLauncher'
+            'com.voxel.android/com.voxel.android.AndroidLauncher'
 }
 
 dependencies {
