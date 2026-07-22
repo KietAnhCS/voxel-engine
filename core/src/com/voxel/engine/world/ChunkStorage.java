@@ -12,13 +12,13 @@ public final class ChunkStorage {
     private final int areaShift;
     private final byte[] blocks;
     /**
-     * Bo dem anh sang DANG DUOC DUNG DE VE.
+     * The light buffer CURRENTLY USED FOR RENDERING.
      *
-     * Luong mesh doc mang nay trong khi luong anh sang co the dang tinh lai chunk. Vi the
-     * {@link LightEngine} khong bao gio sua truc tiep vao day: no tinh tron mot ban moi
-     * roi goi {@link #commitLight} de doi sang - mot phep gan duy nhat. Nguoi doc luon
-     * thay mot ban day du, khong bao gio kip nhin thay mang vua bi xoa trang (do chinh
-     * la nguyen nhan lam chunk chop den).
+     * The mesh thread reads this array while the light thread may be recomputing the chunk.
+     * That is why {@link LightEngine} never writes into it directly: it computes a complete
+     * new copy and then calls {@link #commitLight} to switch over - a single assignment.
+     * Readers always see a complete copy, never a half-cleared array (which is exactly what
+     * makes chunks flash black).
      */
     private volatile byte[] light;
     private final short[] skyFloor;
@@ -36,10 +36,10 @@ public final class ChunkStorage {
     }
 
     /**
-     * Trai mang 3 chieu ra mang 1 chieu. Vi chunkSize luon la luy thua cua 2 nen
-     * phep nhan duoc thay bang dich bit va phep cong bang OR.
+     * Flattens a 3D array into a 1D array. Since chunkSize is always a power of 2, the
+     * multiplications become bit shifts and the additions become ORs.
      *
-     * Do phuc tap: O(1) - ba phep tinh bit, khong co vong lap nao.
+     * Complexity: O(1) - three bit operations, no loops at all.
      */
     public int index(int x, int y, int z) {
         return (y << areaShift) | (x << sizeShift) | z;
@@ -86,17 +86,17 @@ public final class ChunkStorage {
         return sky > block ? sky : block;
     }
 
-    /** Kich thuoc mot bo dem anh sang, de LightEngine tu cap phat ban dang tinh do. */
+    /** Size of one light buffer, so LightEngine can allocate the copy it is computing. */
     public int lightBufferSize() {
         return size * size * height;
     }
 
-    /** Byte anh sang tho cua ban DANG dung, de so xem ban vua tinh co khac khong. */
+    /** Raw light byte of the copy IN USE, to check whether the newly computed copy differs. */
     public byte rawLight(int index) {
         return light[index];
     }
 
-    /** Dua ban anh sang vua tinh xong vao su dung, thay cho ban cu. */
+    /** Puts the freshly computed light copy into use, replacing the old one. */
     public void commitLight(byte[] rebuilt) {
         this.light = rebuilt;
     }
@@ -106,8 +106,8 @@ public final class ChunkStorage {
     }
 
     /**
-     * Quet lai toan bo chunk de tim do cao khoi dac cao nhat cua tung cot.
-     * Do phuc tap: O(size^2 * height) - chi goi mot lan sau khi sinh xong chunk.
+     * Rescans the whole chunk to find the highest solid block of every column.
+     * Complexity: O(size^2 * height) - only called once after the chunk is generated.
      */
     public void rebuildSkyFloor() {
         for (int x = 0; x < size; x++) {
@@ -125,11 +125,11 @@ public final class ChunkStorage {
     }
 
     /**
-     * Cap nhat mot cot sau khi nguoi choi dat/pha mot khoi - re hon nhieu so voi
+     * Updates a single column after the player places/breaks a block - much cheaper than
      * {@link #rebuildSkyFloor()}.
      *
-     * Do phuc tap: O(1) khi dat khoi; O(y) khi pha dung khoi tren cung (phai do
-     * xuong tim khoi dac ke tiep), O(1) khi pha khoi nam duoi mat.
+     * Complexity: O(1) when placing a block; O(y) when breaking the topmost block (it has to
+     * scan down for the next solid block), O(1) when breaking a block below the surface.
      */
     public void updateSkyFloor(int x, int y, int z, boolean placed) {
         int column = columnIndex(x, z);

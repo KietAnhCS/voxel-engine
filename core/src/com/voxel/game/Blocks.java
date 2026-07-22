@@ -7,10 +7,10 @@ import com.voxel.engine.block.geometry.CubeGeometry;
 import com.voxel.engine.block.geometry.LiquidGeometry;
 
 /**
- * Bang khoi cua game. Moi khoi chi ton tai DUY NHAT mot the hien va duoc dung lai
- * cho hang trieu o trong the gioi - do la mau Flyweight.
+ * The game's block table. Each block exists as exactly ONE instance that is reused
+ * for millions of cells in the world - that is the Flyweight pattern.
  *
- * Anh cua tung khoi nam trong texturepacker/textures/, dong goi bang
+ * The image of each block lives in texturepacker/textures/ and is packed with
  * "gradlew :desktop:packTextures".
  */
 public final class Blocks {
@@ -31,9 +31,11 @@ public final class Blocks {
     public final Block pineLeaves;
     public final Block cactus;
     public final Block lamp;
+    /** Torch: a thin block you can walk through that gives off light, like Minecraft. */
+    public final Block torch;
     public final Block brick;
     public final Block planks;
-    /** Khoi nuoc nguon - thu nguoi choi dat xuong. Cac muc chay xem {@link #waterLevels()}. */
+    /** Source water block - what the player places. For flowing levels see {@link #waterLevels()}. */
     public final Block water;
     public final Block tuft;
     public final Block deadBush;
@@ -81,7 +83,7 @@ public final class Blocks {
                 .geometry(CubeGeometry.OPAQUE)
                 .texture("textures/snow"));
 
-        // Bang: nhin xuyen duoc nhung van dung len duoc (co va cham).
+        // Ice: you can see through it but still stand on it (it has collision).
         ice = registry.register(Block.named("ice")
                 .geometry(CubeGeometry.TRANSLUCENT)
                 .texture("textures/ice")
@@ -117,6 +119,15 @@ public final class Blocks {
                 .texture("textures/glowstone")
                 .luminance(14));
 
+        // The torch reuses the cross shape of grass/flowers so it needs no geometry of
+        // its own, and luminance(14) makes it glow exactly like a Minecraft torch.
+        torch = registry.register(Block.named("torch")
+                .geometry(CrossGeometry.INSTANCE)
+                .texture("textures/torch")
+                .translucent()
+                .passable()
+                .luminance(14));
+
         brick = registry.register(Block.named("brick")
                 .geometry(CubeGeometry.OPAQUE)
                 .texture("textures/bricks"));
@@ -125,9 +136,9 @@ public final class Blocks {
                 .geometry(CubeGeometry.OPAQUE)
                 .texture("textures/planks"));
 
-        // Nuoc gom 8 muc day: muc 8 la khoi nguon, muc 1..7 la nuoc dang chay - cang xa
-        // nguon mat nuoc cang thap. Moi muc la mot Block rieng nhung dung chung mot hinh
-        // va mot anh, nen van chi la 8 the hien cho ca the gioi (Flyweight).
+        // Water has 8 depth levels: level 8 is the source, levels 1..7 are flowing water -
+        // the further from the source the lower the surface. Each level is its own Block but
+        // they share one shape and one image, so the whole world still uses 8 instances (Flyweight).
         waterLevels[0] = air;
         for (int level = 1; level < Block.MAX_FLUID_LEVEL; level++) {
             waterLevels[level] = registry.register(Block.named("water_" + level)
@@ -143,7 +154,7 @@ public final class Blocks {
                 .attenuation(3));
         waterLevels[Block.MAX_FLUID_LEVEL] = water;
 
-        // Cac khoi mong duoi day deu passable(): di xuyen qua duoc, giong Minecraft.
+        // The thin blocks below are all passable(): you can walk through them, like Minecraft.
         tuft = registry.register(Block.named("tuft")
                 .geometry(CrossGeometry.INSTANCE)
                 .texture("textures/tall_grass")
@@ -173,8 +184,21 @@ public final class Blocks {
                 .windAffected());
     }
 
-    /** Bang khoi nuoc theo muc cho FluidSimulator: [0] khong khi ... [8] khoi nguon. */
+    /** Water blocks by level for FluidSimulator: [0] air ... [8] the source block. */
     public Block[] waterLevels() {
         return waterLevels;
+    }
+
+    /**
+     * The blocks the player can place, in the order shown in the creative block
+     * palette. It leaves out "air" and the flowing water levels.
+     */
+    public Block[] palette() {
+        return new Block[]{
+                grass, dirt, stone, cobblestone, sand, sandstone, gravel,
+                wood, birchWood, planks, brick, leaves, pineLeaves,
+                snow, ice, cactus, lamp, torch, water,
+                tuft, deadBush, flower, flowerYellow
+        };
     }
 }

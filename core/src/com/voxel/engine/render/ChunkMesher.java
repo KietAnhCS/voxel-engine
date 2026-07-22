@@ -64,10 +64,10 @@ public final class ChunkMesher implements BlockView, QuadEmitter {
     }
 
     /**
-     * Do phuc tap: O(size^2 * height) - phai xet moi o mot lan (thuc te la hai lan,
-     * mot luot cho khoi can duong va mot luot cho khoi di xuyen qua duoc).
-     * Moi o chi sinh mat cho nhung huong khong bi khoi ben canh che, nen so tam giac
-     * xuat ra ti le voi DIEN TICH be mat chu khong phai the tich chunk.
+     * Complexity: O(size^2 * height) - every block must be visited once (twice in practice,
+     * one pass for blocking blocks and one pass for pass-through blocks).
+     * Each block only emits faces for directions not hidden by a neighbour, so the number of
+     * triangles produced is proportional to the surface AREA, not to the chunk volume.
      */
     public ChunkGeometryData build(World world, Chunk chunk) {
         this.world = world;
@@ -84,9 +84,9 @@ public final class ChunkMesher implements BlockView, QuadEmitter {
             solid.reset();
             fluid.reset();
 
-            // Hai luot: khoi CAN DUONG di truoc, khoi DI XUYEN QUA DUOC (co, hoa) di sau.
-            // Nho vay phan dau cua mesh solid chinh la hinh dang va cham, con phan duoi
-            // chi de ve. Bien collisionIndexCount ghi lai ranh gioi do.
+            // Two passes: BLOCKING blocks first, PASS-THROUGH blocks (grass, flowers) after.
+            // That way the first part of the solid mesh is exactly the collision shape, while
+            // the rest is only for drawing. collisionIndexCount records that boundary.
             emitSection(section, size, true);
             int collisionIndexCount = solid.indexCount();
             emitSection(section, size, false);
@@ -106,7 +106,7 @@ public final class ChunkMesher implements BlockView, QuadEmitter {
     }
 
     /**
-     * @param collidableOnly true: chi ve khoi can duong; false: chi ve khoi di xuyen qua duoc
+     * @param collidableOnly true: only draw blocking blocks; false: only draw pass-through blocks
      */
     private void emitSection(int section, int size, boolean collidableOnly) {
         int baseY = section * SECTION_HEIGHT;

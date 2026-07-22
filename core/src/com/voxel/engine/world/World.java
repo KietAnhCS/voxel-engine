@@ -40,9 +40,9 @@ public final class World {
     private FluidSimulator fluids;
 
     /**
-     * Bo nho lam viec cua {@link #update}: danh sach chunk can sinh va khoang cach
-     * cua chung toi nguoi choi. Cap phat mot lan roi dung lai mai de khong tao rac
-     * moi khung hinh. An toan vi update() chi duoc goi tu luong chinh.
+     * Working memory for {@link #update}: the list of chunks to generate and their distance
+     * to the player. Allocated once and reused forever so no garbage is created every frame.
+     * Safe because update() is only called from the main thread.
      */
     private final long[] requestKeys;
     private final int[] requestDistances;
@@ -78,7 +78,7 @@ public final class World {
         return registry;
     }
 
-    /** Gan bo mo phong chat long: tu day moi lan dat/pha khoi se bao cho no biet. */
+    /** Installs the fluid simulator: from now on every block placed/broken notifies it. */
     public void installFluids(FluidSimulator fluids) {
         this.fluids = fluids;
     }
@@ -88,13 +88,13 @@ public final class World {
     }
 
     /**
-     * Nap cac chunk quanh nguoi choi va tra lai nhung chunk da di qua xa.
+     * Loads the chunks around the player and releases the ones that have gone too far away.
      *
-     * Cac chunk can sinh duoc SAP XEP theo khoang cach truoc khi giao cho worker,
-     * nen canh tuong ngay truoc mat nguoi choi hien ra truoc, vien xa hien sau -
-     * thay vi hien lom dom theo thu tu quet hang.
+     * The chunks to generate are SORTED by distance before being handed to the workers, so the
+     * scenery right in front of the player appears first and the far edge appears later -
+     * instead of popping in patchily following the row scan order.
      *
-     * Do phuc tap: O(n log n) voi n = so chunk trong tam nhin (n = viewDistance^2 * pi).
+     * Complexity: O(n log n) with n = number of chunks in view (n = viewDistance^2 * pi).
      */
     public void update(Vector3 viewer) {
         float step = config.chunkSize();

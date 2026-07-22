@@ -3,7 +3,7 @@ package com.voxel.game.terrain.decor;
 import com.voxel.engine.block.Block;
 
 /**
- * Cay bach duong: than cao, manh, tan la nho gon o ngon.
+ * Birch tree: a tall, slim trunk with a small compact crown at the top.
  */
 public final class BirchShape implements TreeShape {
 

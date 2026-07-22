@@ -3,14 +3,15 @@ package com.voxel.game.terrain.decor;
 import com.voxel.engine.block.Block;
 
 /**
- * Cay thong (van sam) kieu Minecraft: tan la KHONG phai hinh non tron ma xep thanh
- * nhieu tang vay giat cap.
+ * Minecraft-style pine (spruce): the crown is NOT a smooth cone but is stacked into
+ * several stepped skirt layers.
  *
- * Cach tao ra cac tang: di tu ngon xuong goc, ban kinh phinh to dan len; nhung moi
- * khi cham tran cua tang hien tai thi tut han ve 1 va tran duoc noi them mot don vi.
- * Cu the ma lap lai, thanh ra than cay bi that lai o cho tut, va do la duong ranh
- * giua hai tang vay. Ban truoc dung cong thuc ban kinh giam deu nen ra hinh non tron
- * mut - trong khong ra van sam.
+ * How the layers are made: going from the top down to the base, the radius grows
+ * bigger; but every time it hits the cap of the current layer it drops back to 1 and
+ * the cap is raised by one unit. Repeating this makes the tree pinch in at each drop,
+ * and that is the boundary between two skirt layers. The previous version used a
+ * uniformly shrinking radius formula, so it came out as a smooth cone - it did not
+ * look like a spruce.
  */
 public final class PineShape implements TreeShape {
 
@@ -22,9 +23,9 @@ public final class PineShape implements TreeShape {
         Block wood = context.blocks().wood;
         Block needles = context.blocks().pineLeaves;
 
-        // Than dung lai ba khoi duoi chop: neu de no vuon toi tan ngon thi cac vong
-        // ban kinh 0 o gan dinh roi trung vao than, thanh ra co khuc go tro ngay duoi
-        // chop. De than thap hon thi ba hang tren cung deu la la dac.
+        // The trunk stops three blocks below the tip: if it reached all the way up, the
+        // radius-0 rings near the top would land on the trunk, leaving a bare log stub
+        // right under the tip. Keeping the trunk lower makes the top three rows solid leaves.
         int crown = groundY + trunkHeight;
         context.place(0, groundY, 0, context.blocks().dirt);
         for (int step = 1; step <= trunkHeight - 3; step++) {

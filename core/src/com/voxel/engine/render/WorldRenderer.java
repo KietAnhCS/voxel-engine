@@ -29,10 +29,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 public final class WorldRenderer implements ChunkListener {
 
     /**
-     * So chunk duoc dua len GPU moi khung hinh. Mot lan upload ton ~3 ms tren luong chinh
-     * (phan lon la dung cay BVH va cham), nen de 6 la tu tay minh ep khung hinh xuong ~50 fps
-     * moi khi hang doi day. Ba chunk/khung hinh o 60 fps van la 180 chunk/giay - thua suc
-     * theo kip nguoi choi chay.
+     * How many chunks are pushed to the GPU each frame. One upload costs ~3 ms on the main
+     * thread (mostly building the collision BVH tree), so setting it to 6 would knock the
+     * frame rate down to ~50 fps whenever the queue is full. Three chunks/frame at 60 fps is
+     * still 180 chunks/second - more than enough to keep up with a running player.
      */
     private static final int UPLOAD_BUDGET_PER_FRAME = 3;
     private static final int MESH_TASKS_PER_FRAME = 4;
@@ -112,8 +112,8 @@ public final class WorldRenderer implements ChunkListener {
     }
 
     /**
-     * Do uu tien = binh phuong khoang cach ngang tu camera toi tam chunk.
-     * Dung binh phuong de khoi phai tinh can bac hai, va giu kieu int cho heap so sanh nhanh.
+     * Priority = squared horizontal distance from the camera to the chunk centre.
+     * Squaring avoids a square root, and keeping it as int makes heap comparisons fast.
      */
     private int priorityOf(Chunk chunk) {
         int half = config.chunkSize() / 2;

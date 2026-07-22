@@ -18,7 +18,7 @@ public final class MountainBiome extends Biome {
         super("mountains", blocks,
                 new TreeDecorator(0.015f, 21, new PineShape()),
                 new BoulderDecorator(0.006f, 22),
-                new ScatterDecorator(0.16f, 23, source -> source.tuft));
+                new ScatterDecorator(0.34f, 23, source -> source.tuft).inPatches(18));
     }
 
     @Override

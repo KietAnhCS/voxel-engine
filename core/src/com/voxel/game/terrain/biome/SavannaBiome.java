@@ -12,8 +12,8 @@ public final class SavannaBiome extends Biome {
     public SavannaBiome(Blocks blocks) {
         super("savanna", blocks,
                 new TreeDecorator(0.004f, 8, new OakShape()),
-                new ScatterDecorator(0.04f, 9, source -> source.deadBush),
-                new ScatterDecorator(0.55f, 10, source -> source.tuft));
+                // Bui kho de danh rieng cho sa mac, thao nguyen chi con co.
+                new ScatterDecorator(0.70f, 10, source -> source.tuft).inPatches(34));
     }
 
     @Override

@@ -12,9 +12,9 @@ public final class PlainsBiome extends Biome {
     public PlainsBiome(Blocks blocks) {
         super("plains", blocks,
                 new TreeDecorator(0.006f, 1, new OakShape()),
-                new ScatterDecorator(0.08f, 2, source -> source.flower),
-                new ScatterDecorator(0.10f, 26, source -> source.flowerYellow),
-                new ScatterDecorator(0.45f, 3, source -> source.tuft));
+                new ScatterDecorator(0.015f, 2, source -> source.flower),
+                new ScatterDecorator(0.015f, 26, source -> source.flowerYellow),
+                new ScatterDecorator(0.62f, 3, source -> source.tuft).inPatches(30));
     }
 
     @Override

@@ -12,69 +12,69 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
- * Nuoc chay kieu Minecraft.
+ * Minecraft-style flowing water.
  *
- * Moi o nuoc co mot MUC tu 1 den 8: 8 la khoi nguon (day o), so cang nho o cang can.
- * Toan bo hanh vi nam trong DUY NHAT mot cong thuc, ap cho o khong khi va o nuoc
- * khong phai nguon:
+ * Every water cell has a LEVEL from 1 to 8: 8 is a source block (full cell), the smaller
+ * the number the shallower the cell. The whole behaviour lives in a SINGLE formula,
+ * applied to air cells and to water cells that are not sources:
  *
- *     muc moi = 8                              neu co tu 2 khoi nguon ke ben (bien lan ra)
- *             = 7                              neu ngay tren dau co nuoc (nuoc do xuong)
- *             = max(muc 4 o ben canh) - 1      nguoc lai, toi thieu la 0
+ *     new level = 8                              if 2 or more source blocks are adjacent (sea spreading)
+ *               = 7                              if there is water directly above (water pouring down)
+ *               = max(level of the 4 side cells) - 1      otherwise, minimum 0
  *
- * Muc 0 nghia la o tro lai thanh khong khi. Mot cong thuc lo ca hai chieu:
- *  - Dat nguon: cac o quanh nguon nhan 7, roi 6, 5... nen nuoc loang ra dung 7 o.
- *  - Mat nguon: muc lon nhat con lai cua vung phai giam it nhat 1 sau moi luot
- *    (mot o chi giu duoc muc M khi co hang xom muc M+1), nen nuoc tu rut can het.
- *    Khong can viet luat rieng cho viec rut.
+ * Level 0 means the cell turns back into air. One formula covers both directions:
+ *  - Placing a source: the cells around it get 7, then 6, 5... so water spreads exactly 7 cells.
+ *  - Removing a source: the largest level left in the area must drop by at least 1 each round
+ *    (a cell only keeps level M while it has a neighbour of level M+1), so the water drains
+ *    away on its own. No separate rule for draining is needed.
  *
- * Nuoc bat dau chay tu hai nguon: nguoi choi dat/pha khoi ({@link #schedule}), va chinh
- * dia hinh vua sinh ra ({@link #seed}) - nho the bien va ho tu do vao hang ngam ma khong
- * can ai cham vao.
+ * Water starts flowing from two places: the player placing/breaking a block ({@link #schedule}),
+ * and the terrain that was just generated ({@link #seed}) - that way seas and lakes pour into
+ * caves without anyone touching them.
  *
- * Cach chay: giu mot HANG DOI cac o can tinh lai. Moi luot lay ra TOAN BO hang doi
- * hien tai roi tinh; o nao thay doi thi {@link World#setBlock} lai day 6 o ke vao
- * hang doi cho luot sau. Nho vay moi luot dong nuoc chi lan them dung mot o - dong
- * chay bo dan ra chu khong hien ra tuc thi.
+ * How it runs: keep a QUEUE of cells that need recomputing. Each round take out THE WHOLE
+ * current queue and compute it; any cell that changes goes through {@link World#setBlock},
+ * which pushes its 6 neighbours into the queue for the next round. So each round the water
+ * spreads exactly one cell further - the flow creeps outwards instead of appearing at once.
  *
- * Do phuc tap: O(k) moi luot voi k = so o dang cho. Mot lan dat nuoc chi cham toi
- * cac o trong ban kinh lan toa (7 o) nen k bi chan, khong phu thuoc kich thuoc the gioi.
+ * Complexity: O(k) per round with k = number of waiting cells. Placing water once only touches
+ * cells within the spread radius (7 cells), so k is bounded and does not depend on world size.
  */
 public final class FluidSimulator {
 
-    /** Muc cua nuoc dang roi tu tren xuong: gan day o nhung khong phai khoi nguon. */
+    /** Level of water falling from above: almost a full cell, but not a source block. */
     private static final int FALLING_LEVEL = 7;
-    /** Cu bay nhieu buoc vat ly thi nuoc lan them mot o: 4 luot/giay, dung nhip Minecraft. */
+    /** Water spreads one more cell every this many physics steps: 4 rounds/second, the Minecraft rhythm. */
     private static final int STEPS_PER_SPREAD = 15;
-    /** Chan tren so o xu ly moi luot de mot vu no nuoc khong lam khung hinh khung lai. */
+    /** Upper bound on cells processed per round so a water explosion does not freeze the frame rate. */
     private static final int MAX_CELLS_PER_SPREAD = 4096;
 
     private static final Direction[] SIDES = {
             Direction.EAST, Direction.WEST, Direction.SOUTH, Direction.NORTH};
 
     private final World world;
-    /** byLevel[0] = khong khi, byLevel[1..7] = nuoc dang chay, byLevel[8] = khoi nguon. */
+    /** byLevel[0] = air, byLevel[1..7] = flowing water, byLevel[8] = source block. */
     private final Block[] byLevel;
     /**
-     * Hop thu cac o vua duoc ghi ten. Chunk duoc sinh o luong rieng nen {@link #seed}
-     * chay ngoai luong chinh - hop thu la cho duy nhat hai luong gap nhau.
+     * Inbox of the cells that were just scheduled. Chunks are generated on a separate thread
+     * so {@link #seed} runs off the main thread - the inbox is the only place the two threads meet.
      */
     private final Queue<Long> inbox = new ConcurrentLinkedQueue<Long>();
     private final Set<Long> pending = new LinkedHashSet<Long>();
     private final List<Long> batch = new ArrayList<Long>();
-    /** Cac chunk da doi trong luot nay, de chi tinh lai anh sang MOT lan cho moi chunk. */
+    /** Chunks changed in this round, so lighting is recomputed only ONCE per chunk. */
     private final Set<Chunk> dirty = new LinkedHashSet<Chunk>();
     private int steps;
 
     public FluidSimulator(World world, Block[] byLevel) {
         if (byLevel.length != Block.MAX_FLUID_LEVEL + 1) {
-            throw new IllegalArgumentException("can du " + (Block.MAX_FLUID_LEVEL + 1) + " muc nuoc");
+            throw new IllegalArgumentException("need exactly " + (Block.MAX_FLUID_LEVEL + 1) + " water levels");
         }
         this.world = world;
         this.byLevel = byLevel.clone();
     }
 
-    /** Bao rang o nay va 6 o ke can duoc tinh lai o luot sau. */
+    /** Marks that this cell and its 6 neighbours must be recomputed next round. */
     public void schedule(int x, int y, int z) {
         inbox.add(pack(x, y, z));
         for (int i = 0; i < Direction.ALL.length; i++) {
@@ -84,14 +84,14 @@ public final class FluidSimulator {
     }
 
     /**
-     * Ghi ten nhung o nuoc co the chay ngay khi chunk vua sinh xong, de bien va ho tu
-     * do vao cac hang ngam bi khoet trung vao thanh - khong can nguoi choi dao nhat nao.
+     * Schedules the water cells that can flow as soon as a chunk is generated, so seas and
+     * lakes pour into the caves carved into their walls - without the player digging anything.
      *
-     * Chi ghi ten o nuoc CO LOI THOAT: ben duoi hoac mot trong 4 ben la o trong. Mat
-     * bien phang li khong o nao thoa dieu kien nen ca dai duong khong bi danh thuc oan.
-     * O ke nam ngoai chunk thi bo qua - chunk ben canh se tu quet phan cua no.
+     * Only water cells WITH AN OUTLET are scheduled: the cell below or one of the 4 sides is
+     * empty. On a flat sea surface no cell satisfies this, so a whole ocean is never woken up
+     * for nothing. Neighbours outside the chunk are skipped - the next chunk scans its own part.
      *
-     * Do phuc tap: O(size^2 * height) mot lan cho moi chunk, va chi doc mang trong chunk.
+     * Complexity: O(size^2 * height) once per chunk, and it only reads arrays inside the chunk.
      */
     public void seed(Chunk chunk) {
         ChunkStorage storage = chunk.storage();
@@ -128,7 +128,7 @@ public final class FluidSimulator {
         return storage.contains(x, y, z) && registry.byId(storage.blockId(x, y, z)).isAir();
     }
 
-    /** Goi moi buoc vat ly. */
+    /** Called on every physics step. */
     public void tick() {
         if (++steps < STEPS_PER_SPREAD) {
             return;
@@ -142,7 +142,7 @@ public final class FluidSimulator {
             return;
         }
 
-        // Chep hang doi ra roi xoa: nhung o duoc them trong luc tinh se thuoc ve luot sau.
+        // Copy the queue out then clear it: cells added while computing belong to the next round.
         batch.clear();
         batch.addAll(pending);
         pending.clear();
@@ -155,8 +155,8 @@ public final class FluidSimulator {
             pending.add(batch.get(i));
         }
 
-        // Ca luot chi tinh lai anh sang va dung lai hinh MOT lan cho moi chunk, thay vi
-        // mot lan cho moi o vua doi. Day la cho quyet dinh muot hay giat.
+        // The whole round recomputes lighting and rebuilds geometry ONCE per chunk, instead of
+        // once per changed cell. This is what decides between smooth and stuttering.
         for (Chunk chunk : dirty) {
             world.relightAsync(chunk, true);
         }
@@ -170,10 +170,10 @@ public final class FluidSimulator {
 
         Block current = world.blockAt(x, y, z);
         if (current.fluidLevel() == Block.MAX_FLUID_LEVEL) {
-            return;                                     // khoi nguon khong bao gio can di
+            return;                                     // a source block never has to move
         }
         if (!current.isAir() && !current.isLiquid()) {
-            return;                                     // dat da: nuoc khong vao duoc
+            return;                                     // solid ground: water cannot enter
         }
 
         int target = inflow(x, y, z);
@@ -183,8 +183,8 @@ public final class FluidSimulator {
     }
 
     /**
-     * Ghi nho chunk chua o vua doi, va ca cac chunk ke ben: o nam sat bien thi hinh va
-     * anh sang cua chunk ben canh cung phai dung lai.
+     * Remembers the chunk holding the changed cell, plus the neighbouring chunks: for a cell
+     * right at the border, the neighbour's geometry and lighting must be rebuilt too.
      */
     private void markDirty(int x, int z) {
         for (int dx = -1; dx <= 1; dx++) {
@@ -197,7 +197,7 @@ public final class FluidSimulator {
         }
     }
 
-    /** Muc nuoc ma o nay se co o luot sau - chinh la cong thuc mo ta trong javadoc lop. */
+    /** The water level this cell will have next round - exactly the formula described in the class javadoc. */
     private int inflow(int x, int y, int z) {
         int best = 0;
         int sources = 0;
@@ -213,9 +213,9 @@ public final class FluidSimulator {
             }
         }
 
-        // Nam giua hai khoi nguon thi chinh minh thanh nguon. Nho luat nay mot ranh dao
-        // thong ra bien se day len thanh bien that chu khong chi la mot vet nuoc can, va
-        // nuoc trong bien khong bao gio "chay het" ra ngoai.
+        // A cell between two source blocks becomes a source itself. Thanks to this rule a trench
+        // dug out to the sea fills up as real sea water instead of a shallow trickle, and the
+        // water in the sea never "drains away".
         if (sources >= 2) {
             return Block.MAX_FLUID_LEVEL;
         }
@@ -226,9 +226,9 @@ public final class FluidSimulator {
     }
 
     /**
-     * O nuoc nay co cho trong ben duoi khong? Neu co thi no do thang xuong chu khong
-     * loang sang ngang - nho the nuoc roi tu tren cao thanh mot cot thay vi mot dam
-     * bet ra giua khong trung, dung nhu Minecraft.
+     * Does this water cell have empty space below it? If so it pours straight down instead of
+     * spreading sideways - that way water falling from a height forms a column instead of a
+     * puddle splayed out in mid-air, exactly like Minecraft.
      */
     private boolean spillsDown(int x, int y, int z) {
         Block below = world.blockAt(x, y - 1, z);
@@ -236,8 +236,8 @@ public final class FluidSimulator {
     }
 
     /**
-     * Nhet toa do the gioi vao mot long de lam khoa cho hang doi: 26 bit cho x, 12 bit
-     * cho y, 26 bit cho z. Nho vay khong phai cap phat doi tuong toa do cho tung o.
+     * Packs a world coordinate into one long to use as a queue key: 26 bits for x, 12 bits
+     * for y, 26 bits for z. That way no coordinate object has to be allocated per cell.
      */
     private static long pack(int x, int y, int z) {
         return ((long) x & 0x3FFFFFFL) << 38 | ((long) y & 0xFFFL) << 26 | ((long) z & 0x3FFFFFFL);

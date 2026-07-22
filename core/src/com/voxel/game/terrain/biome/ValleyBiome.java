@@ -12,9 +12,9 @@ public final class ValleyBiome extends Biome {
     public ValleyBiome(Blocks blocks) {
         super("valley", blocks,
                 new TreeDecorator(0.012f, 15, new OakShape()),
-                new ScatterDecorator(0.12f, 16, source -> source.flower),
-                new ScatterDecorator(0.12f, 27, source -> source.flowerYellow),
-                new ScatterDecorator(0.40f, 17, source -> source.tuft));
+                new ScatterDecorator(0.02f, 16, source -> source.flower),
+                new ScatterDecorator(0.02f, 27, source -> source.flowerYellow),
+                new ScatterDecorator(0.58f, 17, source -> source.tuft).inPatches(24));
     }
 
     @Override

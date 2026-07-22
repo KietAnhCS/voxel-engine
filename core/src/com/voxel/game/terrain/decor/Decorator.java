@@ -1,13 +1,13 @@
 package com.voxel.game.terrain.decor;
 
 /**
- * Strategy: mot cach trang tri be mat (co, hoa, cay, tang tuyet, tang da...).
- * Biome chi can ghep vai decorator lai la co "phong canh" rieng.
+ * Strategy: one way of decorating the surface (grass, flowers, trees, snow layer, rock layer...).
+ * A biome only needs to combine a few decorators to get its own "landscape".
  */
 public interface Decorator {
 
     /**
-     * @return true neu da dat vat the va cac decorator sau khong nen dung o cot nay
+     * @return true if an object was placed and later decorators should not use this column
      */
     boolean decorate(DecorationContext context);
 }

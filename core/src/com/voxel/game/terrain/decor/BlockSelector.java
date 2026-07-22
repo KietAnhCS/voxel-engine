@@ -4,7 +4,7 @@ import com.voxel.engine.block.Block;
 import com.voxel.game.Blocks;
 
 /**
- * Chon mot khoi tu bang khoi cua game (dung cho cac decorator rai vat the).
+ * Picks a block from the game's block table (used by decorators that scatter objects).
  */
 public interface BlockSelector {
 

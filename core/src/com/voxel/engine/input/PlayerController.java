@@ -26,6 +26,10 @@ public final class PlayerController extends InputAdapter {
     private long lastJumpTapMillis;
     private boolean jumpHeld;
     private boolean fullscreen;
+    /** Tat khi dang mo tui do / khung chat: phim va chuot luc do thuoc ve giao dien. */
+    private boolean enabled = true;
+    /** Che do sinh ton khong cho bay, nen chan luon cu nhan dup phim SPACE. */
+    private boolean flightAllowed = true;
 
     public PlayerController(PerspectiveCamera camera) {
         this.camera = camera;
@@ -41,7 +45,29 @@ public final class PlayerController extends InputAdapter {
         }
     }
 
+    /** Bat/tat toan bo dieu khien nguoi choi (dung khi mo giao dien). */
+    public void setEnabled(boolean enabled) {
+        this.enabled = enabled;
+        if (!enabled) {
+            input.set(0f, 0f, false, false);
+            jumpHeld = false;
+        }
+    }
+
+    public boolean isEnabled() {
+        return enabled;
+    }
+
+    public void setFlightAllowed(boolean flightAllowed) {
+        this.flightAllowed = flightAllowed;
+    }
+
     public void poll() {
+        if (!enabled) {
+            input.set(0f, 0f, false, false);
+            return;
+        }
+
         float forwardAxis = 0f;
         float strafeAxis = 0f;
 
@@ -78,7 +104,7 @@ public final class PlayerController extends InputAdapter {
     }
 
     public void applyMouseLook() {
-        if (!Gdx.input.isCursorCatched()) {
+        if (!enabled || !Gdx.input.isCursorCatched()) {
             return;
         }
 
@@ -97,7 +123,10 @@ public final class PlayerController extends InputAdapter {
 
     @Override
     public boolean keyDown(int keycode) {
-        if (keycode == Input.Keys.SPACE && !jumpHeld) {
+        if (!enabled) {
+            return false;
+        }
+        if (keycode == Input.Keys.SPACE && !jumpHeld && flightAllowed) {
             jumpHeld = true;
             long now = System.currentTimeMillis();
             if (now - lastJumpTapMillis < DOUBLE_TAP_WINDOW_MS) {
@@ -112,6 +141,9 @@ public final class PlayerController extends InputAdapter {
 
     @Override
     public boolean keyUp(int keycode) {
+        if (!enabled) {
+            return false;
+        }
         if (keycode == Input.Keys.SPACE) {
             jumpHeld = false;
         }
@@ -129,6 +161,9 @@ public final class PlayerController extends InputAdapter {
 
     @Override
     public boolean touchDown(int screenX, int screenY, int pointer, int button) {
+        if (!enabled) {
+            return false;
+        }
         if (!Gdx.input.isCursorCatched()) {
             Gdx.input.setCursorCatched(true);
             return true;

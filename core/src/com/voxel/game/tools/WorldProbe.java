@@ -16,13 +16,13 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Cong cu kiem tra bo sinh the gioi ma khong can mo cua so game:
- * sinh mot vung chunk roi in ra thong ke biome, hang dong, cay coi va thoi gian chay.
+ * Tool that checks the world generator without opening the game window:
+ * it builds a patch of chunks and prints biome, cave, tree and timing statistics.
  *
- * Chay bang:  gradlew :desktop:worldProbe
+ * Run it with:  gradlew :desktop:worldProbe
  *
- * Nam trong lop "game" chu khong phai "engine": no dung Blocks, BiomeSource... cua game,
- * ma engine thi khong duoc phep biet gi ve game.
+ * It lives in the "game" layer, not the "engine" layer: it uses the game's Blocks,
+ * BiomeSource and so on, and the engine is not allowed to know anything about the game.
  */
 public final class WorldProbe {
 
@@ -74,7 +74,7 @@ public final class WorldProbe {
                         minHeight = Math.min(minHeight, floor);
                         maxHeight = Math.max(maxHeight, floor);
 
-                        // Bong rong duoi long dat = khong khi ma phia tren van con da.
+                        // An underground cavity is air that still has stone above it.
                         for (int y = 1; y < floor - 1; y++) {
                             Block block = registry.byId(storage.blockId(x, y, z));
                             if (block.isAir()) {
@@ -99,21 +99,21 @@ public final class WorldProbe {
         long elapsedMs = (System.nanoTime() - startedAt) / 1_000_000L;
 
         System.out.println("seed              : " + seed);
-        System.out.println("chunks sinh ra    : " + chunkCount + " (" + elapsedMs + " ms, trung binh "
+        System.out.println("chunks generated  : " + chunkCount + " (" + elapsedMs + " ms, average "
                 + (elapsedMs / Math.max(1, chunkCount)) + " ms/chunk)");
-        System.out.println("do cao mat dat    : " + minHeight + " .. " + maxHeight);
-        System.out.println("o rong trong long dat : " + cavities);
-        System.out.println("khoi than cay     : " + trees);
-        System.out.println("co / hoa / bui    : " + plants);
-        System.out.println("phan bo biome     :");
+        System.out.println("surface height    : " + minHeight + " .. " + maxHeight);
+        System.out.println("underground cavities  : " + cavities);
+        System.out.println("tree trunk blocks : " + trees);
+        System.out.println("grass/flowers/bush: " + plants);
+        System.out.println("biome spread      :");
         for (Map.Entry<String, Integer> entry : biomeCounts.entrySet()) {
             if (entry.getValue() > 0) {
-                System.out.println("   " + entry.getKey() + " : " + entry.getValue() + " cot");
+                System.out.println("   " + entry.getKey() + " : " + entry.getValue() + " columns");
             }
         }
     }
 
-    /** Writer don gian: chi ghi trong pham vi chunk, bo qua phan tran ra ngoai. */
+    /** Simple writer: it only writes inside the chunk and drops anything spilling outside. */
     private static final class LocalWriter implements ChunkWriter {
 
         private final Chunk chunk;

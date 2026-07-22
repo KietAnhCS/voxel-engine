@@ -6,7 +6,7 @@ import com.voxel.engine.world.Chunk;
 public interface CollisionSink {
 
     /**
-     * @param indexCount so chi so dau mesh duoc dung lam hinh va cham (0 = khong co va cham)
+     * @param indexCount how many leading mesh indices form the collision shape (0 = no collision)
      */
     void updateSection(Chunk chunk, int section, Mesh mesh, int indexCount);
 

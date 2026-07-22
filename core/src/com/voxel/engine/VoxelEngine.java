@@ -28,7 +28,10 @@ import com.voxel.engine.physics.MovementState;
 import com.voxel.engine.physics.PhysicsWorld;
 import com.voxel.engine.physics.PlayerBody;
 import com.voxel.engine.physics.VoxelRaycaster;
+import com.voxel.engine.physics.state.FlightState;
 import com.voxel.engine.physics.state.GroundState;
+import com.voxel.engine.render.PlayerModel;
+import com.voxel.engine.render.ViewMode;
 import com.voxel.engine.render.WorldRenderer;
 import com.voxel.engine.world.Chunk;
 import com.voxel.engine.world.ChunkFactory;
@@ -44,7 +47,7 @@ public final class VoxelEngine implements Disposable {
     private static final float REACH = 6f;
     private static final float HEAD_BOB_AMPLITUDE = 0.045f;
     private static final float HEAD_BOB_FREQUENCY = 9.5f;
-    /** Nua chieu cao capsule nguoi choi: ban kinh 0.35 + nua than 0.525. */
+    /** Half height of the player capsule: radius 0.35 + half body 0.525. */
     private static final float PLAYER_HALF_HEIGHT = 0.875f;
 
     private final EngineConfig config;
@@ -62,6 +65,10 @@ public final class VoxelEngine implements Disposable {
     private final Environment environment;
     private final VoxelRaycaster raycaster = new VoxelRaycaster();
     private final VoxelRaycaster.Hit hit = new VoxelRaycaster.Hit();
+    private final VoxelRaycaster.Hit cameraHit = new VoxelRaycaster.Hit();
+    private final PlayerModel playerModel = new PlayerModel();
+    private final Vector3 orbit = new Vector3();
+    private final Vector3 feet = new Vector3();
     private final Color skyColor = new Color(0.44f, 0.66f, 0.94f, 1f);
     private final Color waterColor = new Color(0.05f, 0.13f, 0.28f, 1f);
     private final ColorAttribute fogAttribute;
@@ -69,6 +76,7 @@ public final class VoxelEngine implements Disposable {
     private final Vector3 spawn = new Vector3();
 
     private MovementState movementState = new GroundState();
+    private ViewMode viewMode = ViewMode.FIRST_PERSON;
     private BlockInteraction interaction;
     private float accumulator;
     private float elapsed;
@@ -143,6 +151,7 @@ public final class VoxelEngine implements Disposable {
         }
 
         updateCamera(delta);
+        updatePlayerModel(delta);
         processInteractions();
         renderer.update();
         drawWorld();
@@ -182,12 +191,12 @@ public final class VoxelEngine implements Disposable {
     }
 
     /**
-     * Chunk duoc sinh o luong khac nen luc vao game chua co hinh va cham nao.
-     * Neu tha nguoi choi roi ngay thi ho se roi xuyen qua dat va khi mesh va cham xuat hien
-     * thi bi ket ben trong long dat. Vi vay: giu nguoi choi dung yen tai cho, doi chunk o
-     * spawn mesh xong, roi moi dat ho len dung mat khoi cao nhat.
+     * Chunks are generated on another thread, so when the game starts there is no collision
+     * shape yet. If the player were dropped right away they would fall through the ground and
+     * get stuck inside it once the collision mesh appears. So: hold the player in place, wait
+     * for the spawn chunk to finish meshing, then put them on top of the highest block.
      *
-     * @return true khi da dat nguoi choi xuong dat xong
+     * @return true once the player has been placed on the ground
      */
     private boolean settleSpawn() {
         world.update(spawn);
@@ -210,7 +219,7 @@ public final class VoxelEngine implements Disposable {
         return true;
     }
 
-    /** Do cao cua khoi can duong cao nhat tai cot nay. */
+    /** Height of the highest blocking block in this column. */
     private int highestSolid(int blockX, int blockZ) {
         for (int y = world.config().worldHeight() - 1; y > 0; y--) {
             Block block = world.blockAt(blockX, y, blockZ);
@@ -226,8 +235,65 @@ public final class VoxelEngine implements Disposable {
         float bob = controller.input().isMoving() && player.onGround()
                 ? HEAD_BOB_AMPLITUDE * MathUtils.sin(bobPhase)
                 : 0f;
-        camera.position.set(position.x, position.y + PlayerBody.EYE_HEIGHT + bob, position.z);
-        camera.update(true);
+        float eyeY = position.y + PlayerBody.EYE_HEIGHT + bob;
+
+        if (viewMode == ViewMode.FIRST_PERSON) {
+            camera.position.set(position.x, eyeY, position.z);
+            camera.update(true);
+            return;
+        }
+
+        // Third person: pull the camera back (or forward) along the view direction.
+        // If a wall is in the way, stop in front of it so the camera does not go through.
+        eye.set(position.x, eyeY, position.z);
+        orbit.set(camera.direction).nor().scl(viewMode.facingPlayer() ? 1f : -1f);
+        float distance = freeDistance(eye, orbit, viewMode.distance());
+        camera.position.set(eye).mulAdd(orbit, distance);
+
+        if (viewMode.facingPlayer()) {
+            camera.direction.scl(-1f);
+            camera.update(true);
+            camera.direction.scl(-1f);
+        } else {
+            camera.update(true);
+        }
+    }
+
+    /**
+     * Measures how far a ray from the player's eyes along {@code direction} travels
+     * before hitting a solid block. Returns that distance minus a small margin so the
+     * camera does not sit flush against the wall.
+     */
+    private float freeDistance(Vector3 from, Vector3 direction, float wanted) {
+        if (raycaster.cast(world, from, direction, wanted, cameraHit)) {
+            float dx = cameraHit.blockX() + 0.5f - from.x;
+            float dy = cameraHit.blockY() + 0.5f - from.y;
+            float dz = cameraHit.blockZ() + 0.5f - from.z;
+            float hitDistance = (float) Math.sqrt(dx * dx + dy * dy + dz * dz);
+            return Math.max(0.4f, hitDistance - 0.4f);
+        }
+        return wanted;
+    }
+
+    /** Switches the view mode (F5 key): first person -> back -> front. */
+    public ViewMode cycleViewMode() {
+        viewMode = viewMode.next();
+        return viewMode;
+    }
+
+    public ViewMode viewMode() {
+        return viewMode;
+    }
+
+    /** Places the player model in the right spot and swings the limbs with the walk cycle. */
+    private void updatePlayerModel(float delta) {
+        if (!viewMode.showsPlayer()) {
+            return;
+        }
+        Vector3 position = player.position();
+        feet.set(position.x, position.y - PLAYER_HALF_HEIGHT, position.z);
+        float yaw = MathUtils.atan2(camera.direction.x, camera.direction.z) * MathUtils.radiansToDegrees;
+        playerModel.update(feet, yaw, controller.input().isMoving(), delta);
     }
 
     private void processInteractions() {
@@ -261,6 +327,10 @@ public final class VoxelEngine implements Disposable {
         batch.begin(camera);
         batch.render(renderer.solidPass(), environment);
         batch.end();
+
+        if (viewMode.showsPlayer()) {
+            playerModel.render(camera);
+        }
 
         Gdx.gl.glDepthMask(false);
         batch.begin(camera);
@@ -324,8 +394,49 @@ public final class VoxelEngine implements Disposable {
         return submerged;
     }
 
+    public PlayerController controller() {
+        return controller;
+    }
+
+    /** Position of the player's feet. Used to compute fall damage. */
+    public Vector3 playerPosition() {
+        return player.position();
+    }
+
+    public boolean playerOnGround() {
+        return player.onGround();
+    }
+
+    /** Is the player walking - used to compute how fast hunger drains. */
+    public boolean isPlayerMoving() {
+        return controller.input().isMoving();
+    }
+
+    /** Is the player's body submerged in water (used to cancel fall damage). */
+    public boolean playerInWater() {
+        return player.isSubmerged();
+    }
+
+    /** Returns the player to the spawn point (after dying). */
+    public void respawnPlayer() {
+        player.teleport(spawn);
+    }
+
+    /**
+     * Forbids flight in survival mode. If the player is already flying, drop them
+     * back to the ground at once, otherwise they would hang in mid-air forever.
+     */
+    public void setFlightAllowed(boolean allowed) {
+        controller.setFlightAllowed(allowed);
+        if (!allowed && movementState instanceof FlightState) {
+            movementState = new GroundState();
+            movementState.enter(player);
+        }
+    }
+
     @Override
     public void dispose() {
+        playerModel.dispose();
         renderer.dispose();
         world.dispose();
         physics.dispose();
@@ -407,9 +518,9 @@ public final class VoxelEngine implements Disposable {
         }
 
         /**
-         * Bat mo phong nuoc chay. Bo qua thi nuoc dung yen nhu mot khoi binh thuong.
+         * Enables flowing water simulation. Omit it and water stays still like a normal block.
          *
-         * @param levels bang khoi theo muc nuoc: [0] la khong khi, [8] la khoi nguon
+         * @param levels block table by water level: [0] is air, [8] is the source block
          */
         public Builder water(Block[] levels) {
             this.waterLevels = levels;

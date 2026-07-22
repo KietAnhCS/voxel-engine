@@ -3,13 +3,14 @@ package com.voxel.game.terrain.decor;
 import com.voxel.engine.block.Block;
 
 /**
- * Cay soi kieu Minecraft co dien: than thang khong nhanh, tan la hinh "keo mut"
- * gom bon tang - hai tang duoi rong 5x5 om lay ngon than, hai tang tren 3x3, bon
- * goc cua moi tang bi khoet bot cho tan tron canh.
+ * Classic Minecraft-style oak: a straight branchless trunk with a "lollipop" crown
+ * made of four layers - the two lower layers are 5x5 wrapping the top of the trunk,
+ * the two upper ones are 3x3, and the four corners of each layer are trimmed so the
+ * crown has rounded edges.
  *
- * Ban truoc dung DE QUY de dam nhanh nhu cay soi khong lo. Cay soi thuong cua
- * Minecraft khong he co nhanh, va tan la mong kieu do lam nhin xuyen thau vao
- * giua cay - dung cai nguoi ta hay che.
+ * The previous version used RECURSION to grow branches like a giant oak. A normal
+ * Minecraft oak has no branches at all, and such a thin crown lets you see straight
+ * through the middle of the tree - exactly what people complain about.
  */
 public final class OakShape implements TreeShape {
 
@@ -42,8 +43,9 @@ public final class OakShape implements TreeShape {
     }
 
     /**
-     * Goc cua tang chop luon bi bo, goc cac tang duoi bo mot nua theo may rui -
-     * nho the moi cay mot khac chu khong ra bon hinh hop giong het nhau.
+     * The corners of the top layer are always removed, the corners of the lower layers
+     * are removed half the time at random - that way every tree looks different instead
+     * of coming out as four identical boxes.
      */
     private boolean isTrimmedCorner(DecorationContext context, int dx, int dz, int radius, int dy) {
         if (Math.abs(dx) != radius || Math.abs(dz) != radius) {

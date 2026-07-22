@@ -1,7 +1,7 @@
 package com.voxel.game.terrain.decor;
 
 /**
- * Xuong rong sa mac: mot cot cao 2..4 khoi.
+ * Desert cactus: a column 2..4 blocks tall.
  */
 public final class CactusShape implements TreeShape {
 

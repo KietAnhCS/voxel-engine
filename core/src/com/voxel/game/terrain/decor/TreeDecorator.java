@@ -1,7 +1,7 @@
 package com.voxel.game.terrain.decor;
 
 /**
- * Gieo cay theo xac suat. Hinh dang cay do {@link TreeShape} quyet dinh.
+ * Plants trees by probability. The tree shape is decided by {@link TreeShape}.
  */
 public final class TreeDecorator implements Decorator {
 

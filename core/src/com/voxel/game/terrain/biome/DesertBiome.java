@@ -13,7 +13,8 @@ public final class DesertBiome extends Biome {
     public DesertBiome(Blocks blocks) {
         super("desert", blocks,
                 new TreeDecorator(0.008f, 11, new CactusShape()),
-                new ScatterDecorator(0.03f, 12, source -> source.deadBush));
+                // Bui kho chi moc tren CAT: tham so cuoi la khoi mat dat bat buoc.
+                new ScatterDecorator(0.05f, 12, source -> source.deadBush, source -> source.sand));
     }
 
     @Override

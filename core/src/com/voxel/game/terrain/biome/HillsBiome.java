@@ -14,7 +14,7 @@ public final class HillsBiome extends Biome {
         super("hills", blocks,
                 new TreeDecorator(0.020f, 18, new OakShape()),
                 new BoulderDecorator(0.004f, 19),
-                new ScatterDecorator(0.30f, 20, source -> source.tuft));
+                new ScatterDecorator(0.50f, 20, source -> source.tuft).inPatches(26));
     }
 
     @Override

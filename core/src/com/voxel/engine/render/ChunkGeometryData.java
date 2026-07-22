@@ -36,15 +36,15 @@ public final class ChunkGeometryData {
     }
 
     /**
-     * Van tay cua hinh mot section: bam toan bo dinh va chi so (thuat toan FNV-1a).
+     * Fingerprint of one section's geometry: hashes all vertices and indices (FNV-1a algorithm).
      *
-     * Hai lan dung hinh cho ra cung van tay nghia la section do khong doi gi het, va
-     * {@link ChunkMeshSet} bo qua duoc han - khong tao Mesh moi, nhat la khong dung lai
-     * cay BVH va cham (phan dat nhat cua mot lan upload). Chuyen nay xay ra rat thuong:
-     * nuoc chay hay den bat sang o mot goc chunk lam doi mau vai dinh, con 7 section kia
-     * y nguyen.
+     * If two builds give the same fingerprint, that section did not change at all, and
+     * {@link ChunkMeshSet} can skip it entirely - no new Mesh, and above all no rebuilding of
+     * the collision BVH tree (the most expensive part of an upload). This happens very often:
+     * flowing water or a lamp lighting up in one corner of the chunk changes a few vertex
+     * colours while the other 7 sections stay identical.
      *
-     * Tinh o luong mesh nen khung hinh khong phai tra gia.
+     * Computed on the mesher thread, so the frame does not pay for it.
      */
     private static long fingerprint(float[] vertices, short[] indices, int extra) {
         long key = (0xcbf29ce484222325L ^ extra) * 0x100000001b3L;
@@ -57,7 +57,7 @@ public final class ChunkGeometryData {
         return key;
     }
 
-    /** So chi so dau tien cua mesh solid dung cho va cham (phan con lai chi de ve). */
+    /** How many leading indices of the solid mesh are used for collision (the rest is only drawn). */
     public int collisionIndexCount(int section) {
         return collisionIndexCounts[section];
     }

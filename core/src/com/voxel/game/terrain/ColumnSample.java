@@ -3,8 +3,8 @@ package com.voxel.game.terrain;
 import com.voxel.game.terrain.biome.Biome;
 
 /**
- * Ket qua khao sat mot cot (x, z) cua the gioi: cao bao nhieu, thuoc biome nao.
- * Doi tuong nay duoc dung lai cho tung cot de tranh cap phat rac.
+ * The survey result of one world column (x, z): how high it is, which biome it belongs to.
+ * This object is reused for each column to avoid allocating garbage.
  */
 public final class ColumnSample {
 

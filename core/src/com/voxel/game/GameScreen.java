@@ -1,19 +1,23 @@
 package com.voxel.game;
 
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.InputMultiplexer;
 import com.badlogic.gdx.ScreenAdapter;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.PerspectiveCamera;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
+import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.math.Vector3;
 import com.voxel.engine.VoxelEngine;
+import com.voxel.engine.block.Block;
 import com.voxel.engine.block.BlockRegistry;
 import com.voxel.engine.input.BlockInteraction;
 import com.voxel.engine.physics.VoxelRaycaster;
 import com.voxel.engine.world.World;
+import com.voxel.game.play.PlaySession;
 import com.voxel.game.terrain.OverworldChunkFactory;
 import com.voxel.game.terrain.TerrainNoise;
 import com.voxel.game.terrain.biome.BiomeSource;
@@ -31,9 +35,11 @@ public final class GameScreen extends ScreenAdapter implements BlockInteraction 
     private Blocks blocks;
     private VoxelEngine engine;
     private BiomeSource biomes;
+    private PlaySession play;
     private SpriteBatch ui;
     private BitmapFont font;
     private Texture crosshair;
+    private final GlyphLayout layout = new GlyphLayout();
 
     @Override
     public void show() {
@@ -75,11 +81,17 @@ public final class GameScreen extends ScreenAdapter implements BlockInteraction 
         font = new BitmapFont();
         font.setColor(Color.WHITE);
         crosshair = new Texture(Gdx.files.internal("data/crosshair.png"));
+
+        play = new PlaySession(engine, blocks, atlas, font);
+        // Giao dien duoc hoi truoc: khi tui do hay khung chat dang mo thi no giu lai
+        // phim bam, khong cho lot xuong phan dieu khien nhan vat.
+        Gdx.input.setInputProcessor(new InputMultiplexer(play, engine.controller()));
     }
 
     @Override
     public void render(float delta) {
         engine.render(delta);
+        play.update(delta);
         drawOverlay();
     }
 
@@ -90,31 +102,108 @@ public final class GameScreen extends ScreenAdapter implements BlockInteraction 
         ui.getProjectionMatrix().setToOrtho2D(0f, 0f, width, height);
         ui.begin();
 
-        font.draw(ui, "fps " + Gdx.graphics.getFramesPerSecond()
-                + "   chunks " + engine.visibleChunks() + "/" + engine.loadedChunks()
-                + "   sections " + engine.visibleSections()
-                + "   triangles " + engine.visibleTriangles()
-                + "   queued " + engine.pendingMeshUpdates(), 12f, height - 12f);
+        if (play.isDebugVisible()) {
+            drawDebugText(width, height);
+        }
 
-        font.draw(ui, String.format("x %.1f  y %.1f  z %.1f   state %s   biome %s",
-                camera.position.x, camera.position.y, camera.position.z,
-                engine.movementLabel(),
-                biomes.pick((int) Math.floor(camera.position.x), (int) Math.floor(camera.position.z))),
-                12f, height - 32f);
+        if (play.showCrosshair()) {
+            ui.draw(crosshair,
+                    (width - crosshair.getWidth()) * 0.5f,
+                    (height - crosshair.getHeight()) * 0.5f);
+        }
 
-        font.draw(ui, "WASD move   SPACE jump   SPACE x2 fly   LMB break   RMB lamp   CTRL+RMB water   F fullscreen   Q quit",
-                12f, 24f);
-
-        ui.draw(crosshair,
-                (width - crosshair.getWidth()) * 0.5f,
-                (height - crosshair.getHeight()) * 0.5f);
-
+        play.draw(ui, width, height);
         ui.end();
+    }
+
+    /**
+     * Bang go loi kieu F3 cua Minecraft: cot trai la thong tin the gioi, cot phai
+     * la thong tin may. Moi dong co nen den mo cho de doc tren nen sang.
+     */
+    private void drawDebugText(int width, int height) {
+        Vector3 eye = camera.position;
+        int blockX = (int) Math.floor(eye.x);
+        int blockY = (int) Math.floor(eye.y);
+        int blockZ = (int) Math.floor(eye.z);
+        Runtime runtime = Runtime.getRuntime();
+        long usedMb = (runtime.totalMemory() - runtime.freeMemory()) >> 20;
+        long maxMb = runtime.maxMemory() >> 20;
+
+        String[] left = {
+                "Voxel Engine  " + Gdx.graphics.getFramesPerSecond() + " fps",
+                "chunks " + engine.visibleChunks() + "/" + engine.loadedChunks()
+                        + "   sections " + engine.visibleSections()
+                        + "   cho ghep " + engine.pendingMeshUpdates(),
+                "tam giac " + engine.visibleTriangles(),
+                "",
+                String.format("XYZ  %.3f / %.5f / %.3f", eye.x, eye.y, eye.z),
+                "Khoi  " + blockX + " " + blockY + " " + blockZ,
+                "Chunk  " + Math.floorDiv(blockX, 16) + " " + Math.floorDiv(blockZ, 16),
+                "Huong  " + facing() + String.format("  (%.1f / %.1f)", yaw(), pitch()),
+                "Biome  " + biomes.pick(blockX, blockZ),
+                "Trang thai  " + engine.movementLabel() + "   Goc nhin  " + engine.viewMode().label()
+        };
+        String[] right = {
+                "Java " + System.getProperty("java.version"),
+                "Bo nho  " + usedMb + " / " + maxMb + " MB",
+                "Man hinh  " + width + "x" + height,
+                "Che do  " + play.mode().label(),
+                "",
+                "F3 an bang nay      F5 doi goc nhin",
+                "E tui do            / go lenh",
+                "1-9 hoac lan chuot doi khoi",
+                "chuot trai pha      chuot phai dat",
+                "CTRL+phai dat duoc  Q thoat"
+        };
+
+        drawDebugColumn(left, 6f, height - 6f, false, width);
+        drawDebugColumn(right, width - 6f, height - 6f, true, width);
+    }
+
+    private void drawDebugColumn(String[] lines, float x, float top, boolean alignRight, int width) {
+        float y = top;
+        for (String line : lines) {
+            if (!line.isEmpty()) {
+                layout.setText(font, line);
+                float textX = alignRight ? x - layout.width : x;
+                ui.setColor(0f, 0f, 0f, 0.45f);
+                ui.draw(play.pixel(), textX - 2f, y - layout.height - 4f, layout.width + 4f, layout.height + 6f);
+                ui.setColor(Color.WHITE);
+                font.setColor(Color.WHITE);
+                font.draw(ui, line, textX, y);
+            }
+            y -= 20f;
+        }
+    }
+
+    /** Huong dang nhin, goi ten nhu Minecraft. */
+    private String facing() {
+        float angle = (yaw() % 360f + 360f) % 360f;
+        if (angle >= 315f || angle < 45f) {
+            return "nam (+Z)";
+        }
+        if (angle < 135f) {
+            return "tay (-X)";
+        }
+        if (angle < 225f) {
+            return "bac (-Z)";
+        }
+        return "dong (+X)";
+    }
+
+    private float yaw() {
+        return (float) Math.toDegrees(Math.atan2(camera.direction.x, camera.direction.z));
+    }
+
+    private float pitch() {
+        return (float) Math.toDegrees(Math.asin(-camera.direction.y));
     }
 
     @Override
     public void onBreak(World world, VoxelRaycaster.Hit hit) {
+        Block broken = world.blockAt(hit.blockX(), hit.blockY(), hit.blockZ());
         world.setBlock(hit.blockX(), hit.blockY(), hit.blockZ(), blocks.air);
+        play.onBreak(broken);
     }
 
     @Override
@@ -130,7 +219,12 @@ public final class GameScreen extends ScreenAdapter implements BlockInteraction 
             return;
         }
 
-        world.setBlock(x, y, z, alternate ? blocks.water : blocks.lamp);
+        // Hoi tui do TRUOC khi dat: o che do sinh ton thao tac nay bot mot khoi,
+        // nen chi duoc goi khi cho dat da hop le.
+        Block block = play.blockToPlace(alternate);
+        if (block != null) {
+            world.setBlock(x, y, z, block);
+        }
     }
 
     @Override
@@ -145,6 +239,7 @@ public final class GameScreen extends ScreenAdapter implements BlockInteraction 
 
     @Override
     public void dispose() {
+        play.dispose();
         engine.dispose();
         atlas.dispose();
         ui.dispose();

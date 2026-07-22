@@ -3,9 +3,9 @@ package com.voxel.game.terrain;
 import com.voxel.engine.generation.SimplexNoise;
 
 /**
- * Tap hop cac "truong nhieu" dung chung cho toan bo the gioi.
- * Tach rieng de biome nao cung doc cung mot nguon -> bien gioi giua cac biome muot.
- * Tat ca ham deu chi doc, an toan khi goi tu nhieu luong sinh chunk.
+ * The set of shared "noise fields" used by the whole world.
+ * Kept separate so every biome reads from the same source -> smooth borders between biomes.
+ * All methods are read-only, safe to call from multiple chunk generation threads.
  */
 public final class TerrainNoise {
 
@@ -36,47 +36,47 @@ public final class TerrainNoise {
         this.wormField = new SimplexNoise(seed * 23L + 86028121L);
     }
 
-    /** Luc dia: am la bien, duong la dat lien. */
+    /** Continent: negative is ocean, positive is land. */
     public double continent(int x, int z) {
         return continentField.fractal2d(x, z, 3, 0.0013, 2.0, 0.5);
     }
 
-    /** Xoi mon: cao la dat bang phang, thap la dia hinh go ghe / nui. */
+    /** Erosion: high means flat land, low means rough terrain / mountains. */
     public double erosion(int x, int z) {
         return erosionField.fractal2d(x, z, 2, 0.0021, 2.0, 0.5);
     }
 
-    /** Go doi nho, dung cho moi biome. */
+    /** Small hills, used by every biome. */
     public double hills(int x, int z) {
         return hillField.fractal2d(x, z, 4, 0.0090, 2.0, 0.5);
     }
 
-    /** Song nui: gia tri 0..1, gan 1 la dinh nui sac. */
+    /** Mountain ridges: value 0..1, close to 1 is a sharp peak. */
     public double ridge(int x, int z) {
         return 1.0 - Math.abs(ridgeField.fractal2d(x, z, 4, 0.0042, 2.0, 0.5));
     }
 
-    /** Nhiet do: am la lanh (tuyet), duong la nong (sa mac). */
+    /** Temperature: negative is cold (snow), positive is hot (desert). */
     public double temperature(int x, int z) {
         return temperatureField.fractal2d(x, z, 2, 0.0011, 2.0, 0.5);
     }
 
-    /** Do am: am la kho, duong la am uot (rung ram, dam lay). */
+    /** Humidity: negative is dry, positive is wet (dense forest, swamp). */
     public double humidity(int x, int z) {
         return humidityField.fractal2d(x, z, 2, 0.0016, 2.0, 0.5);
     }
 
-    /** Via da ngam, dung de tron da voi / da phien / sa thach. */
+    /** Underground strata, used to mix limestone / slate / sandstone. */
     public double strata(int x, int y, int z) {
         return strataField.noise(x * 0.021, y * 0.115, z * 0.019);
     }
 
-    /** Hang dong dang "pho mai": cac bong rong tron. */
+    /** "Cheese" caves: rounded hollow bubbles. */
     public double cave(int x, int y, int z) {
         return caveField.noise(x * 0.023, y * 0.040, z * 0.023);
     }
 
-    /** Nhieu dieu khien huong bo cua perlin worm. */
+    /** Noise that controls the crawling direction of a perlin worm. */
     public double worm(double t, double offset) {
         return wormField.noise(t, offset);
     }

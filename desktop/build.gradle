@@ -18,7 +18,7 @@ task run(type: JavaExec) {
     ]
 }
 
-// Dong goi lai texturepacker/textures/*.png thanh assets/data/textureatlas.png
+// Repacks texturepacker/textures/*.png into assets/data/textureatlas.png
 task packTextures(type: JavaExec) {
     def packerDir = file("../texturepacker")
     mainClass = "com.badlogic.gdx.tools.texturepacker.TexturePacker"
@@ -26,7 +26,15 @@ task packTextures(type: JavaExec) {
     args = [packerDir.absolutePath, file("../assets/data").absolutePath, "textureatlas"]
 }
 
-// Sinh thu vai chunk roi in thong ke (khong can cua so do hoa).
+// Checks the gameplay rules (no graphics window needed).
+task playProbe(type: JavaExec) {
+    dependsOn classes
+    mainClass = "com.voxel.game.tools.PlayProbe"
+    classpath = sourceSets.main.runtimeClasspath
+    ignoreExitValue = true
+}
+
+// Generates a few chunks and prints statistics (no graphics window needed).
 task worldProbe(type: JavaExec) {
     dependsOn classes
     mainClass = "com.voxel.game.tools.WorldProbe"

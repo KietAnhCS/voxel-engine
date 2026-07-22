@@ -14,8 +14,8 @@ public final class ForestBiome extends Biome {
         super("forest", blocks,
                 new TreeDecorator(0.045f, 4, new OakShape()),
                 new TreeDecorator(0.018f, 5, new BirchShape()),
-                new ScatterDecorator(0.10f, 6, source -> source.flower),
-                new ScatterDecorator(0.35f, 7, source -> source.tuft));
+                new ScatterDecorator(0.02f, 6, source -> source.flower),
+                new ScatterDecorator(0.55f, 7, source -> source.tuft).inPatches(22));
     }
 
     @Override

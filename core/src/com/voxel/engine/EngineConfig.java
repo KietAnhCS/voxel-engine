@@ -10,8 +10,8 @@ public final class EngineConfig {
     private final int workerThreads;
 
     /**
-     * Doi tuong bat bien, tu kiem tra tham so ngay khi tao. Public de cac cong cu
-     * ngoai engine (vi du WorldProbe) dung lai duoc cung mot cau hinh voi game that.
+     * Immutable object that validates its parameters at construction time. Public so that
+     * tools outside the engine (for example WorldProbe) can reuse the same config as the real game.
      */
     public EngineConfig(int chunkSize, int worldHeight, int viewDistance, int seaLevel, long seed, int workerThreads) {
         if (Integer.bitCount(chunkSize) != 1) {

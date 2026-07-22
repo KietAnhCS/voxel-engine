@@ -12,7 +12,7 @@ public final class SwampBiome extends Biome {
     public SwampBiome(Blocks blocks) {
         super("swamp", blocks,
                 new TreeDecorator(0.020f, 13, new OakShape()),
-                new ScatterDecorator(0.50f, 14, source -> source.tuft));
+                new ScatterDecorator(0.65f, 14, source -> source.tuft).inPatches(20));
     }
 
     @Override

@@ -27,11 +27,12 @@ public final class ChunkMeshSet {
     }
 
     /**
-     * Section nay co giong het lan upload truoc khong?
+     * Is this section identical to the previous upload?
      *
-     * Neu giong thi bo qua HAN: giu nguyen Mesh cu va giu nguyen hinh va cham cu. Khong
-     * duoc phep chi bo qua phan va cham ma van thay Mesh - cay BVH doc thang buffer cua
-     * Mesh, thay Mesh xong dispose ban cu la BVH tro vao bo nho da giai phong.
+     * If so, skip it ENTIRELY: keep the old Mesh and keep the old collision shape. It is not
+     * allowed to skip only the collision part while still replacing the Mesh - the BVH tree
+     * reads the Mesh buffer directly, so replacing the Mesh and disposing the old one leaves
+     * the BVH pointing into freed memory.
      */
     public boolean isUnchanged(int section, long solidKey, long translucentKey) {
         if (uploaded[section] && solidKeys[section] == solidKey && translucentKeys[section] == translucentKey) {

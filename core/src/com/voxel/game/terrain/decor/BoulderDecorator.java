@@ -3,7 +3,7 @@ package com.voxel.game.terrain.decor;
 import com.voxel.engine.block.Block;
 
 /**
- * Tang da lan lon vuong o suon nui.
+ * Scattered rounded boulders on mountain slopes.
  */
 public final class BoulderDecorator implements Decorator {
 
