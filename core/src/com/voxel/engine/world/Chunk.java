@@ -29,15 +29,23 @@ public abstract class Chunk {
         this.key = ChunkKey.of(chunkX, chunkZ);
     }
 
+    /**
+     * Template Method: thu tu sinh chunk luon la do dia hinh -> duc hang -> trang tri.
+     * Lop con chi dien noi dung tung buoc, khong doi duoc thu tu.
+     */
     public final void generate(ChunkWriter writer) {
         state = ChunkState.GENERATING;
         fillTerrain(writer);
+        carveCaves(writer);
         decorate(writer);
         storage.rebuildSkyFloor();
         state = ChunkState.GENERATED;
     }
 
     protected abstract void fillTerrain(ChunkWriter writer);
+
+    protected void carveCaves(ChunkWriter writer) {
+    }
 
     protected abstract void decorate(ChunkWriter writer);
 

@@ -28,7 +28,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public final class WorldRenderer implements ChunkListener {
 
-    private static final int UPLOAD_BUDGET_PER_FRAME = 6;
+    /**
+     * So chunk duoc dua len GPU moi khung hinh. Mot lan upload ton ~3 ms tren luong chinh
+     * (phan lon la dung cay BVH va cham), nen de 6 la tu tay minh ep khung hinh xuong ~50 fps
+     * moi khi hang doi day. Ba chunk/khung hinh o 60 fps van la 180 chunk/giay - thua suc
+     * theo kip nguoi choi chay.
+     */
+    private static final int UPLOAD_BUDGET_PER_FRAME = 3;
     private static final int MESH_TASKS_PER_FRAME = 4;
 
     private final World world;
@@ -97,12 +103,23 @@ public final class WorldRenderer implements ChunkListener {
 
     @Override
     public void onChunkLightChanged(Chunk chunk) {
-        scheduler.submit(chunk, false);
+        scheduler.submit(chunk, false, priorityOf(chunk));
     }
 
     @Override
     public void onChunkGeometryInvalid(Chunk chunk, boolean urgent) {
-        scheduler.submit(chunk, urgent);
+        scheduler.submit(chunk, urgent, priorityOf(chunk));
+    }
+
+    /**
+     * Do uu tien = binh phuong khoang cach ngang tu camera toi tam chunk.
+     * Dung binh phuong de khoi phai tinh can bac hai, va giu kieu int cho heap so sanh nhanh.
+     */
+    private int priorityOf(Chunk chunk) {
+        int half = config.chunkSize() / 2;
+        float dx = chunk.originX() + half - camera.position.x;
+        float dz = chunk.originZ() + half - camera.position.z;
+        return (int) (dx * dx + dz * dz);
     }
 
     @Override
@@ -195,10 +212,13 @@ public final class WorldRenderer implements ChunkListener {
             }
 
             for (int section = 0; section < data.sections(); section++) {
+                if (set.isUnchanged(section, data.solidKey(section), data.translucentKey(section))) {
+                    continue;
+                }
                 Mesh solid = createMesh(data.solidVertices(section), data.solidIndices(section));
                 set.replaceSolid(section, solid);
                 if (collisionSink != null) {
-                    collisionSink.updateSection(chunk, section, solid);
+                    collisionSink.updateSection(chunk, section, solid, data.collisionIndexCount(section));
                 }
                 set.replaceTranslucent(section,
                         createMesh(data.translucentVertices(section), data.translucentIndices(section)));

@@ -10,6 +10,9 @@ public final class ChunkMeshSet {
     private final Mesh[] translucent;
     private final BoundingBox[] solidBounds;
     private final BoundingBox[] translucentBounds;
+    private final long[] solidKeys;
+    private final long[] translucentKeys;
+    private final boolean[] uploaded;
     private final Matrix4 transform = new Matrix4();
 
     public ChunkMeshSet(int sections, float originX, float originZ) {
@@ -17,7 +20,27 @@ public final class ChunkMeshSet {
         this.translucent = new Mesh[sections];
         this.solidBounds = new BoundingBox[sections];
         this.translucentBounds = new BoundingBox[sections];
+        this.solidKeys = new long[sections];
+        this.translucentKeys = new long[sections];
+        this.uploaded = new boolean[sections];
         this.transform.setToTranslation(originX, 0f, originZ);
+    }
+
+    /**
+     * Section nay co giong het lan upload truoc khong?
+     *
+     * Neu giong thi bo qua HAN: giu nguyen Mesh cu va giu nguyen hinh va cham cu. Khong
+     * duoc phep chi bo qua phan va cham ma van thay Mesh - cay BVH doc thang buffer cua
+     * Mesh, thay Mesh xong dispose ban cu la BVH tro vao bo nho da giai phong.
+     */
+    public boolean isUnchanged(int section, long solidKey, long translucentKey) {
+        if (uploaded[section] && solidKeys[section] == solidKey && translucentKeys[section] == translucentKey) {
+            return true;
+        }
+        uploaded[section] = true;
+        solidKeys[section] = solidKey;
+        translucentKeys[section] = translucentKey;
+        return false;
     }
 
     public Matrix4 transform() {

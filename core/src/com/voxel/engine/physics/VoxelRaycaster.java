@@ -5,8 +5,17 @@ import com.voxel.engine.block.Block;
 import com.voxel.engine.util.Direction;
 import com.voxel.engine.world.World;
 
+/**
+ * Ban mot tia tu mat nguoi choi de tim khoi dang duoc ngam, bang thuat toan DDA
+ * (Amanatides & Woo): thay vi lay mau tia tung doan nho, ta nhay thang toi bien
+ * o tiep theo. Moi vong lap di dung mot o, khong bo sot va khong xet thua o nao.
+ */
 public final class VoxelRaycaster {
 
+    /**
+     * Do phuc tap: O(d) voi d = maxDistance tinh bang so khoi (o day REACH = 6).
+     * Moi buoc chi so sanh ba so thuc de chon truc nao cham bien truoc.
+     */
     public boolean cast(World world, Vector3 origin, Vector3 direction, float maxDistance, Hit hit) {
         int x = (int) Math.floor(origin.x);
         int y = (int) Math.floor(origin.y);

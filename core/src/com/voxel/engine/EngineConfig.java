@@ -9,7 +9,11 @@ public final class EngineConfig {
     private final long seed;
     private final int workerThreads;
 
-    EngineConfig(int chunkSize, int worldHeight, int viewDistance, int seaLevel, long seed, int workerThreads) {
+    /**
+     * Doi tuong bat bien, tu kiem tra tham so ngay khi tao. Public de cac cong cu
+     * ngoai engine (vi du WorldProbe) dung lai duoc cung mot cau hinh voi game that.
+     */
+    public EngineConfig(int chunkSize, int worldHeight, int viewDistance, int seaLevel, long seed, int workerThreads) {
         if (Integer.bitCount(chunkSize) != 1) {
             throw new IllegalArgumentException("chunkSize must be a power of two");
         }

@@ -1,5 +1,17 @@
 package com.voxel.engine.util;
 
+/**
+ * Hang doi so nguyen cai bang MANG VONG (circular buffer).
+ *
+ * Hai chi so head/tail chay vong quanh mang: khi cham cuoi thi quay ve 0. Nho vay
+ * lay phan tu ra khong phai don dich toan bo mang nhu ArrayList.
+ *
+ * Luu int nguyen thuy chu khong phai Integer: BFS anh sang day vao hang doi hang
+ * trieu chi so moi lan tinh, dung Queue&lt;Integer&gt; se tao hang trieu object rac.
+ *
+ * Do phuc tap: enqueue O(1) khau hao (thinh thoang phai nhan doi mang),
+ *              dequeue O(1), isEmpty O(1).
+ */
 public final class IntQueue {
 
     private int[] items;
@@ -45,6 +57,11 @@ public final class IntQueue {
         size = 0;
     }
 
+    /**
+     * Nhan doi suc chua va "duoi thang" mang vong lai tu chi so 0.
+     * O(n) cho mot lan goi, nhung vi moi lan goi lai nhan doi suc chua nen chia deu
+     * ra n phep enqueue thi chi phi khau hao chi con O(1) moi phep.
+     */
     private void grow() {
         int[] grown = new int[items.length << 1];
         for (int i = 0; i < size; i++) {

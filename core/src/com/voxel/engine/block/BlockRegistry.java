@@ -4,6 +4,12 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * Bang tra khoi, luu theo hai cach cho hai muc dich khac nhau:
+ *  - MANG theo id: tra cuu bang chi so truc tiep, O(1) khong bam. Duong nong nhat cua
+ *    ca engine (mesher va light engine goi byId hang trieu lan) di qua day.
+ *  - BANG BAM theo ten: tien cho code game doc, chi dung luc khoi tao. O(1) trung binh.
+ */
 public final class BlockRegistry {
 
     private static final int CAPACITY = 256;

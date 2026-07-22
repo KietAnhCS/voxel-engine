@@ -1,50 +1,45 @@
 package com.voxel.game.terrain;
 
 import com.voxel.engine.block.Block;
-import com.voxel.engine.generation.SimplexNoise;
-import com.voxel.engine.generation.TerrainSample;
 import com.voxel.engine.generation.TerrainStage;
 import com.voxel.game.Blocks;
+import com.voxel.game.terrain.biome.Biome;
 
-public final class SurfaceStage extends TerrainStage {
+/**
+ * Vai lop tren cung cua mat dat - chinh biome quyet dinh o day la co, cat hay tuyet.
+ */
+public final class SurfaceStage extends TerrainStage<ColumnSample> {
 
     private static final int SOIL_DEPTH = 4;
 
     private final Blocks blocks;
-    private final SimplexNoise strata;
     private final int seaLevel;
 
-    public SurfaceStage(Blocks blocks, SimplexNoise strata, int seaLevel) {
+    public SurfaceStage(Blocks blocks, int seaLevel) {
         this.blocks = blocks;
-        this.strata = strata;
         this.seaLevel = seaLevel;
     }
 
     @Override
-    protected Block tryResolve(TerrainSample sample, int x, int y, int z) {
+    protected Block tryResolve(ColumnSample sample, int x, int y, int z) {
         double surface = sample.surfaceHeight();
         if (y > surface) {
             return null;
         }
 
+        Biome biome = sample.biome();
         double depth = surface - y;
+
         if (depth < 1.0) {
-            if (y < seaLevel + 1) {
-                return blocks.sandstone;
+            // Nam duoi mat nuoc thi thay co bang soi cho hop ly.
+            if (y < seaLevel - 1) {
+                return blocks.gravel;
             }
-            return sample.humidity() < -0.55 ? blocks.sandstone : blocks.grass;
+            return biome.topBlock(y, seaLevel);
         }
         if (depth < SOIL_DEPTH) {
-            return y < seaLevel ? blocks.sandstone : blocks.dirt;
+            return biome.fillerBlock(y, seaLevel);
         }
-
-        double band = strata.noise(x * 0.021, y * 0.115, z * 0.019);
-        if (band > 0.46) {
-            return blocks.sandstone;
-        }
-        if (band < -0.42) {
-            return blocks.shale;
-        }
-        return blocks.stone;
+        return null;
     }
 }

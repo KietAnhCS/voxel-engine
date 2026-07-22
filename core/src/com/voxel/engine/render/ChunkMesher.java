@@ -63,6 +63,12 @@ public final class ChunkMesher implements BlockView, QuadEmitter {
         uvCache.put(name, new float[]{u0, v1, u1, v1, u1, v0, u0, v0});
     }
 
+    /**
+     * Do phuc tap: O(size^2 * height) - phai xet moi o mot lan (thuc te la hai lan,
+     * mot luot cho khoi can duong va mot luot cho khoi di xuyen qua duoc).
+     * Moi o chi sinh mat cho nhung huong khong bi khoi ben canh che, nen so tam giac
+     * xuat ra ti le voi DIEN TICH be mat chu khong phai the tich chunk.
+     */
     public ChunkGeometryData build(World world, Chunk chunk) {
         this.world = world;
         this.chunk = chunk;
@@ -78,22 +84,15 @@ public final class ChunkMesher implements BlockView, QuadEmitter {
             solid.reset();
             fluid.reset();
 
-            int baseY = section * SECTION_HEIGHT;
-            for (int y = baseY; y < baseY + SECTION_HEIGHT; y++) {
-                for (int x = 0; x < size; x++) {
-                    for (int z = 0; z < size; z++) {
-                        Block block = registry.byId(storage.blockId(x, y, z));
-                        if (block.isAir()) {
-                            continue;
-                        }
-                        target = block.isLiquid() ? fluid : solid;
-                        block.geometry().emit(this, x, y, z, block, this);
-                    }
-                }
-            }
+            // Hai luot: khoi CAN DUONG di truoc, khoi DI XUYEN QUA DUOC (co, hoa) di sau.
+            // Nho vay phan dau cua mesh solid chinh la hinh dang va cham, con phan duoi
+            // chi de ve. Bien collisionIndexCount ghi lai ranh gioi do.
+            emitSection(section, size, true);
+            int collisionIndexCount = solid.indexCount();
+            emitSection(section, size, false);
 
             if (!solid.isEmpty()) {
-                data.setSolid(section, solid.vertexData(), solid.indexData());
+                data.setSolid(section, solid.vertexData(), solid.indexData(), collisionIndexCount);
             }
             if (!fluid.isEmpty()) {
                 data.setTranslucent(section, fluid.vertexData(), fluid.indexData());
@@ -104,6 +103,35 @@ public final class ChunkMesher implements BlockView, QuadEmitter {
         this.chunk = null;
         this.storage = null;
         return data;
+    }
+
+    /**
+     * @param collidableOnly true: chi ve khoi can duong; false: chi ve khoi di xuyen qua duoc
+     */
+    private void emitSection(int section, int size, boolean collidableOnly) {
+        int baseY = section * SECTION_HEIGHT;
+        for (int y = baseY; y < baseY + SECTION_HEIGHT; y++) {
+            for (int x = 0; x < size; x++) {
+                for (int z = 0; z < size; z++) {
+                    Block block = registry.byId(storage.blockId(x, y, z));
+                    if (block.isAir()) {
+                        continue;
+                    }
+                    if (block.isLiquid()) {
+                        if (collidableOnly) {
+                            continue;
+                        }
+                        target = fluid;
+                    } else {
+                        if (block.isCollidable() != collidableOnly) {
+                            continue;
+                        }
+                        target = solid;
+                    }
+                    block.geometry().emit(this, x, y, z, block, this);
+                }
+            }
+        }
     }
 
     @Override

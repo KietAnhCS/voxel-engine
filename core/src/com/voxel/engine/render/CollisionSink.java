@@ -5,7 +5,10 @@ import com.voxel.engine.world.Chunk;
 
 public interface CollisionSink {
 
-    void updateSection(Chunk chunk, int section, Mesh mesh);
+    /**
+     * @param indexCount so chi so dau mesh duoc dung lam hinh va cham (0 = khong co va cham)
+     */
+    void updateSection(Chunk chunk, int section, Mesh mesh, int indexCount);
 
     void removeChunk(Chunk chunk);
 }

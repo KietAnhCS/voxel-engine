@@ -19,6 +19,7 @@ import com.badlogic.gdx.graphics.glutils.ShaderProgram;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.utils.Disposable;
+import com.voxel.engine.block.Block;
 import com.voxel.engine.block.BlockRegistry;
 import com.voxel.engine.input.BlockInteraction;
 import com.voxel.engine.input.InteractionRequest;
@@ -29,7 +30,10 @@ import com.voxel.engine.physics.PlayerBody;
 import com.voxel.engine.physics.VoxelRaycaster;
 import com.voxel.engine.physics.state.GroundState;
 import com.voxel.engine.render.WorldRenderer;
+import com.voxel.engine.world.Chunk;
 import com.voxel.engine.world.ChunkFactory;
+import com.voxel.engine.world.ChunkState;
+import com.voxel.engine.world.FluidSimulator;
 import com.voxel.engine.world.World;
 import com.voxel.engine.world.WorldEventBus;
 
@@ -40,12 +44,15 @@ public final class VoxelEngine implements Disposable {
     private static final float REACH = 6f;
     private static final float HEAD_BOB_AMPLITUDE = 0.045f;
     private static final float HEAD_BOB_FREQUENCY = 9.5f;
+    /** Nua chieu cao capsule nguoi choi: ban kinh 0.35 + nua than 0.525. */
+    private static final float PLAYER_HALF_HEIGHT = 0.875f;
 
     private final EngineConfig config;
     private final BlockRegistry registry;
     private final World world;
     private final WorldEventBus eventBus;
     private final PhysicsWorld physics;
+    private final FluidSimulator fluids;
     private final PlayerBody player;
     private final WorldRenderer renderer;
     private final PlayerController controller;
@@ -67,6 +74,7 @@ public final class VoxelEngine implements Disposable {
     private float elapsed;
     private float bobPhase;
     private boolean submerged;
+    private boolean spawnSettled;
 
     private VoxelEngine(Builder builder) {
         this.config = new EngineConfig(builder.chunkSize, builder.worldHeight, builder.viewDistance,
@@ -98,6 +106,9 @@ public final class VoxelEngine implements Disposable {
         this.physics = new PhysicsWorld();
         this.renderer.attachCollisionSink(physics);
         eventBus.subscribe(renderer);
+
+        this.fluids = builder.waterLevels == null ? null : new FluidSimulator(world, builder.waterLevels);
+        world.installFluids(fluids);
 
         this.spawn.set(builder.spawn);
         this.player = physics.spawnPlayer(builder.spawn);
@@ -138,6 +149,10 @@ public final class VoxelEngine implements Disposable {
     }
 
     private void stepSimulation() {
+        if (!spawnSettled && !settleSpawn()) {
+            return;
+        }
+
         Vector3 position = player.position();
         if (position.y < 1f) {
             player.teleport(spawn);
@@ -157,9 +172,53 @@ public final class VoxelEngine implements Disposable {
 
         physics.step(FIXED_STEP);
 
+        if (fluids != null) {
+            fluids.tick();
+        }
+
         if (controller.input().isMoving() && player.onGround()) {
             bobPhase += FIXED_STEP * HEAD_BOB_FREQUENCY;
         }
+    }
+
+    /**
+     * Chunk duoc sinh o luong khac nen luc vao game chua co hinh va cham nao.
+     * Neu tha nguoi choi roi ngay thi ho se roi xuyen qua dat va khi mesh va cham xuat hien
+     * thi bi ket ben trong long dat. Vi vay: giu nguoi choi dung yen tai cho, doi chunk o
+     * spawn mesh xong, roi moi dat ho len dung mat khoi cao nhat.
+     *
+     * @return true khi da dat nguoi choi xuong dat xong
+     */
+    private boolean settleSpawn() {
+        world.update(spawn);
+        player.teleport(spawn);
+
+        int chunkX = Math.floorDiv((int) Math.floor(spawn.x), world.config().chunkSize());
+        int chunkZ = Math.floorDiv((int) Math.floor(spawn.z), world.config().chunkSize());
+        Chunk chunk = world.chunkAt(chunkX, chunkZ);
+        if (chunk == null || chunk.state() != ChunkState.MESHED) {
+            return false;
+        }
+
+        int blockX = (int) Math.floor(spawn.x);
+        int blockZ = (int) Math.floor(spawn.z);
+        int ground = highestSolid(blockX, blockZ);
+        spawn.set(blockX + 0.5f, ground + 1f + PLAYER_HALF_HEIGHT + 0.05f, blockZ + 0.5f);
+
+        player.teleport(spawn);
+        spawnSettled = true;
+        return true;
+    }
+
+    /** Do cao cua khoi can duong cao nhat tai cot nay. */
+    private int highestSolid(int blockX, int blockZ) {
+        for (int y = world.config().worldHeight() - 1; y > 0; y--) {
+            Block block = world.blockAt(blockX, y, blockZ);
+            if (!block.isAir() && block.isCollidable()) {
+                return y;
+            }
+        }
+        return world.config().seaLevel();
     }
 
     private void updateCamera(float delta) {
@@ -287,6 +346,7 @@ public final class VoxelEngine implements Disposable {
         private TextureAtlas atlas;
         private PerspectiveCamera camera;
         private Vector3 spawn = new Vector3(8f, 90f, 8f);
+        private Block[] waterLevels;
 
         private Builder() {
         }
@@ -343,6 +403,16 @@ public final class VoxelEngine implements Disposable {
 
         public Builder spawn(Vector3 spawn) {
             this.spawn = spawn;
+            return this;
+        }
+
+        /**
+         * Bat mo phong nuoc chay. Bo qua thi nuoc dung yen nhu mot khoi binh thuong.
+         *
+         * @param levels bang khoi theo muc nuoc: [0] la khong khi, [8] la khoi nguon
+         */
+        public Builder water(Block[] levels) {
+            this.waterLevels = levels;
             return this;
         }
 

@@ -67,7 +67,7 @@ public final class PhysicsWorld implements CollisionSink {
     }
 
     @Override
-    public void updateSection(Chunk chunk, int section, Mesh mesh) {
+    public void updateSection(Chunk chunk, int section, Mesh mesh, int indexCount) {
         SectionBodies bodies = chunkBodies.get(chunk);
         if (bodies == null) {
             bodies = new SectionBodies(chunk.config().worldHeight() / 16);
@@ -75,12 +75,12 @@ public final class PhysicsWorld implements CollisionSink {
         }
         bodies.release(dynamicsWorld, section);
 
-        if (mesh == null || mesh.getNumIndices() == 0) {
+        if (mesh == null || indexCount <= 0) {
             return;
         }
 
         Array<MeshPart> parts = new Array<MeshPart>(1);
-        parts.add(new MeshPart("collision", mesh, 0, mesh.getNumIndices(), GL20.GL_TRIANGLES));
+        parts.add(new MeshPart("collision", mesh, 0, Math.min(indexCount, mesh.getNumIndices()), GL20.GL_TRIANGLES));
 
         btBvhTriangleMeshShape shape = new btBvhTriangleMeshShape(parts);
         btRigidBody body = new btRigidBody(0f, null, shape, Vector3.Zero);

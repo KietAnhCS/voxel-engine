@@ -15,6 +15,8 @@ import com.voxel.engine.input.BlockInteraction;
 import com.voxel.engine.physics.VoxelRaycaster;
 import com.voxel.engine.world.World;
 import com.voxel.game.terrain.OverworldChunkFactory;
+import com.voxel.game.terrain.TerrainNoise;
+import com.voxel.game.terrain.biome.BiomeSource;
 
 public final class GameScreen extends ScreenAdapter implements BlockInteraction {
 
@@ -28,6 +30,7 @@ public final class GameScreen extends ScreenAdapter implements BlockInteraction 
     private BlockRegistry registry;
     private Blocks blocks;
     private VoxelEngine engine;
+    private BiomeSource biomes;
     private SpriteBatch ui;
     private BitmapFont font;
     private Texture crosshair;
@@ -47,7 +50,10 @@ public final class GameScreen extends ScreenAdapter implements BlockInteraction 
         registry = new BlockRegistry();
         blocks = new Blocks(registry);
 
-        OverworldChunkFactory chunkFactory = new OverworldChunkFactory(blocks, seed, SEA_LEVEL, WORLD_HEIGHT);
+        TerrainNoise noise = new TerrainNoise(seed, SEA_LEVEL);
+        biomes = new BiomeSource(blocks, noise);
+
+        OverworldChunkFactory chunkFactory = new OverworldChunkFactory(blocks, biomes, noise, WORLD_HEIGHT);
         Vector3 spawn = chunkFactory.spawnPoint(0, 0);
 
         engine = VoxelEngine.builder()
@@ -61,6 +67,7 @@ public final class GameScreen extends ScreenAdapter implements BlockInteraction 
                 .atlas(atlas)
                 .camera(camera)
                 .spawn(spawn)
+                .water(blocks.waterLevels())
                 .build();
         engine.setInteraction(this);
 
@@ -89,11 +96,13 @@ public final class GameScreen extends ScreenAdapter implements BlockInteraction 
                 + "   triangles " + engine.visibleTriangles()
                 + "   queued " + engine.pendingMeshUpdates(), 12f, height - 12f);
 
-        font.draw(ui, String.format("x %.1f  y %.1f  z %.1f   state %s",
+        font.draw(ui, String.format("x %.1f  y %.1f  z %.1f   state %s   biome %s",
                 camera.position.x, camera.position.y, camera.position.z,
-                engine.movementLabel()), 12f, height - 32f);
+                engine.movementLabel(),
+                biomes.pick((int) Math.floor(camera.position.x), (int) Math.floor(camera.position.z))),
+                12f, height - 32f);
 
-        font.draw(ui, "WASD move   SPACE jump   SPACE x2 fly   LMB break   RMB lamp   CTRL+RMB brick   F fullscreen   Q quit",
+        font.draw(ui, "WASD move   SPACE jump   SPACE x2 fly   LMB break   RMB lamp   CTRL+RMB water   F fullscreen   Q quit",
                 12f, 24f);
 
         ui.draw(crosshair,
@@ -121,7 +130,7 @@ public final class GameScreen extends ScreenAdapter implements BlockInteraction 
             return;
         }
 
-        world.setBlock(x, y, z, alternate ? blocks.brick : blocks.lamp);
+        world.setBlock(x, y, z, alternate ? blocks.water : blocks.lamp);
     }
 
     @Override

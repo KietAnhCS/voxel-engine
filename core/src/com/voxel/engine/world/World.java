@@ -5,6 +5,7 @@ import com.voxel.engine.EngineConfig;
 import com.voxel.engine.block.Block;
 import com.voxel.engine.block.BlockRegistry;
 import com.voxel.engine.util.ChunkKey;
+import com.voxel.engine.util.MergeSort;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -36,6 +37,16 @@ public final class World {
     };
     private final Block air;
     private final Vector3 anchor = new Vector3(Float.MAX_VALUE, Float.MAX_VALUE, Float.MAX_VALUE);
+    private FluidSimulator fluids;
+
+    /**
+     * Bo nho lam viec cua {@link #update}: danh sach chunk can sinh va khoang cach
+     * cua chung toi nguoi choi. Cap phat mot lan roi dung lai mai de khong tao rac
+     * moi khung hinh. An toan vi update() chi duoc goi tu luong chinh.
+     */
+    private final long[] requestKeys;
+    private final int[] requestDistances;
+    private final MergeSort sorter = new MergeSort();
 
     public World(EngineConfig config, BlockRegistry registry, ChunkFactory chunkFactory, WorldEventBus eventBus) {
         this.config = config;
@@ -43,6 +54,10 @@ public final class World {
         this.chunkFactory = chunkFactory;
         this.eventBus = eventBus;
         this.air = registry.byId((byte) 0);
+
+        int span = config.viewDistance() * 2 + 1;
+        this.requestKeys = new long[span * span];
+        this.requestDistances = new int[span * span];
         this.workers = Executors.newFixedThreadPool(config.workerThreads(), new ThreadFactory() {
             private final AtomicInteger counter = new AtomicInteger();
 
@@ -63,10 +78,24 @@ public final class World {
         return registry;
     }
 
+    /** Gan bo mo phong chat long: tu day moi lan dat/pha khoi se bao cho no biet. */
+    public void installFluids(FluidSimulator fluids) {
+        this.fluids = fluids;
+    }
+
     public int loadedChunkCount() {
         return chunks.size();
     }
 
+    /**
+     * Nap cac chunk quanh nguoi choi va tra lai nhung chunk da di qua xa.
+     *
+     * Cac chunk can sinh duoc SAP XEP theo khoang cach truoc khi giao cho worker,
+     * nen canh tuong ngay truoc mat nguoi choi hien ra truoc, vien xa hien sau -
+     * thay vi hien lom dom theo thu tu quet hang.
+     *
+     * Do phuc tap: O(n log n) voi n = so chunk trong tam nhin (n = viewDistance^2 * pi).
+     */
     public void update(Vector3 viewer) {
         float step = config.chunkSize();
         if (Math.abs(viewer.x - anchor.x) < step && Math.abs(viewer.z - anchor.z) < step) {
@@ -79,24 +108,34 @@ public final class World {
         int radius = config.viewDistance();
         int radiusSquared = radius * radius;
 
+        int count = 0;
         for (int dx = -radius; dx <= radius; dx++) {
             for (int dz = -radius; dz <= radius; dz++) {
-                if (dx * dx + dz * dz > radiusSquared) {
+                int distanceSquared = dx * dx + dz * dz;
+                if (distanceSquared > radiusSquared) {
                     continue;
                 }
-                requestChunk(centerX + dx, centerZ + dz);
+                long key = ChunkKey.of(centerX + dx, centerZ + dz);
+                if (chunks.containsKey(key)) {
+                    continue;
+                }
+                requestKeys[count] = key;
+                requestDistances[count] = distanceSquared;
+                count++;
             }
+        }
+
+        sorter.sort(requestKeys, requestDistances, count);
+
+        for (int i = 0; i < count; i++) {
+            requestChunk(requestKeys[i]);
         }
 
         unloadBeyond(centerX, centerZ, radius + 2);
     }
 
-    private void requestChunk(int chunkX, int chunkZ) {
-        final long key = ChunkKey.of(chunkX, chunkZ);
-        if (chunks.containsKey(key)) {
-            return;
-        }
-        final Chunk chunk = chunkFactory.create(config, registry, chunkX, chunkZ);
+    private void requestChunk(final long key) {
+        final Chunk chunk = chunkFactory.create(config, registry, ChunkKey.x(key), ChunkKey.z(key));
         if (chunks.putIfAbsent(key, chunk) != null) {
             return;
         }
@@ -108,6 +147,9 @@ public final class World {
                     applyPendingEdits(chunk);
                     eventBus.fireGenerated(chunk);
                     relight(chunk, false, 0);
+                    if (fluids != null) {
+                        fluids.seed(chunk);
+                    }
                 } catch (Throwable failure) {
                     chunks.remove(key, chunk);
                     throw new IllegalStateException("chunk generation failed at " + ChunkKey.describe(key), failure);
@@ -251,12 +293,36 @@ public final class World {
     }
 
     public boolean setBlock(int worldX, int worldY, int worldZ, Block block) {
-        if (worldY <= 0 || worldY >= config.worldHeight()) {
+        Chunk chunk = write(worldX, worldY, worldZ, block);
+        if (chunk == null) {
             return false;
+        }
+        int mask = config.chunkMask();
+        relightAsync(chunk, true);
+        touchNeighbourChunks(chunk, worldX & mask, worldZ & mask);
+        return true;
+    }
+
+    /**
+     * Ghi khoi ma KHONG tinh lai anh sang ngay.
+     *
+     * Danh cho nhung dot sua hang loat: mot luot nuoc chay co the doi hang chuc o trong
+     * cung mot chunk, ma moi lan tinh lai anh sang la mot luot BFS het ca chunk. Tinh
+     * cho tung o la phi va lam khung hinh giat. Nguoi goi gom cac chunk da doi lai roi
+     * tu goi {@link #relightAsync} dung mot lan cho moi chunk.
+     */
+    public boolean setBlockDeferred(int worldX, int worldY, int worldZ, Block block) {
+        return write(worldX, worldY, worldZ, block) != null;
+    }
+
+    /** @return chunk vua bi sua, hoac null neu o nay khong ghi duoc */
+    private Chunk write(int worldX, int worldY, int worldZ, Block block) {
+        if (worldY <= 0 || worldY >= config.worldHeight()) {
+            return null;
         }
         Chunk chunk = chunkContaining(worldX, worldZ);
         if (chunk == null || !chunk.isReadable()) {
-            return false;
+            return null;
         }
 
         int mask = config.chunkMask();
@@ -265,15 +331,16 @@ public final class World {
 
         ChunkStorage storage = chunk.storage();
         if (storage.blockId(localX, worldY, localZ) == block.id()) {
-            return false;
+            return null;
         }
 
         storage.setBlockId(localX, worldY, localZ, block.id());
         storage.updateSkyFloor(localX, worldY, localZ, !block.isAir());
 
-        relightAsync(chunk, true);
-        touchNeighbourChunks(chunk, localX, localZ);
-        return true;
+        if (fluids != null) {
+            fluids.schedule(worldX, worldY, worldZ);
+        }
+        return chunk;
     }
 
     private void touchNeighbourChunks(Chunk chunk, int localX, int localZ) {

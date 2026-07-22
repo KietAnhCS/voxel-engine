@@ -3,16 +3,16 @@ package com.voxel.game.terrain;
 import com.voxel.engine.EngineConfig;
 import com.voxel.engine.block.Block;
 import com.voxel.engine.block.BlockRegistry;
-import com.voxel.engine.generation.TerrainSample;
 import com.voxel.engine.world.Chunk;
 import com.voxel.engine.world.ChunkWriter;
 import com.voxel.game.Blocks;
+import com.voxel.game.terrain.biome.Biome;
+import com.voxel.game.terrain.decor.DecorationContext;
 
+/**
+ * Mot chunk cua the gioi thuong: do dat da theo biome, khoet hang, roi trong cay co.
+ */
 public final class OverworldChunk extends Chunk {
-
-    private static final float TREE_CHANCE = 0.014f;
-    private static final float TUFT_CHANCE = 0.32f;
-    private static final float FLOWER_CHANCE = 0.38f;
 
     private final TerrainShaper shaper;
     private final Blocks blocks;
@@ -26,7 +26,7 @@ public final class OverworldChunk extends Chunk {
 
     @Override
     protected void fillTerrain(ChunkWriter writer) {
-        TerrainSample sample = new TerrainSample();
+        ColumnSample sample = new ColumnSample();
         int size = config().chunkSize();
         int height = config().worldHeight();
 
@@ -48,76 +48,61 @@ public final class OverworldChunk extends Chunk {
     }
 
     @Override
+    protected void carveCaves(ChunkWriter writer) {
+        shaper.carvers().carve(writer, chunkX(), chunkZ(), config().chunkSize(), config().worldHeight());
+    }
+
+    @Override
     protected void decorate(ChunkWriter writer) {
         int size = config().chunkSize();
-        long seed = shaper.seed();
+        DecorationContext context = new DecorationContext(writer, blocks, shaper.seed(), config().worldHeight());
 
         for (int x = 0; x < size; x++) {
             for (int z = 0; z < size; z++) {
-                int surfaceY = topSoil(writer, x, z);
+                int surfaceY = groundLevel(writer, x, z);
                 if (surfaceY < 0) {
                     continue;
                 }
 
                 int worldX = originX() + x;
                 int worldZ = originZ() + z;
-                float roll = Deterministic.unit(seed, worldX, worldZ, 1);
-
-                if (roll < TREE_CHANCE) {
-                    plantTree(writer, x, surfaceY, z, worldX, worldZ, seed);
-                } else if (roll < TUFT_CHANCE) {
-                    writer.set(x, surfaceY + 1, z, blocks.tuft);
-                } else if (roll < FLOWER_CHANCE) {
-                    writer.set(x, surfaceY + 1, z, blocks.flower);
+                Biome biome = shaper.biomes().pick(worldX, worldZ);
+                if (!biome.isDecorated()) {
+                    continue;
                 }
+
+                context.moveTo(x, z, worldX, worldZ, surfaceY);
+                biome.decorate(context);
             }
         }
     }
 
-    private int topSoil(ChunkWriter writer, int x, int z) {
+    /**
+     * Tim mat dat: khoi dac cao nhat co khong khi ngay tren dau va thuoc loai
+     * "trong duoc" (co, dat, cat, tuyet). Chay sau khi khoet hang nen mieng hang
+     * khong bi phu cay.
+     *
+     * Do phuc tap: O(height) cho moi cot, tuc O(size^2 * height) cho ca chunk.
+     */
+    private int groundLevel(ChunkWriter writer, int x, int z) {
         int height = config().worldHeight();
         for (int y = height - 2; y > shaper.seaLevel(); y--) {
-            if (writer.get(x, y, z) == blocks.grass && writer.get(x, y + 1, z).isAir()) {
+            Block block = writer.get(x, y, z);
+            if (!isPlantable(block)) {
+                continue;
+            }
+            if (writer.get(x, y + 1, z).isAir()) {
                 return y;
             }
         }
         return -1;
     }
 
-    private void plantTree(ChunkWriter writer, int x, int groundY, int z, int worldX, int worldZ, long seed) {
-        int trunkHeight = Deterministic.range(seed, worldX, worldZ, 2, 5, 8);
-        int crownRadius = trunkHeight > 6 ? 3 : 2;
-        int crownCentre = groundY + trunkHeight;
-
-        if (crownCentre + crownRadius >= config().worldHeight() - 1) {
-            return;
-        }
-
-        writer.set(x, groundY, z, blocks.dirt);
-        for (int step = 1; step <= trunkHeight; step++) {
-            writer.set(x, groundY + step, z, blocks.wood);
-        }
-
-        int radiusSquared = crownRadius * crownRadius;
-        for (int dx = -crownRadius; dx <= crownRadius; dx++) {
-            for (int dy = -crownRadius; dy <= crownRadius; dy++) {
-                for (int dz = -crownRadius; dz <= crownRadius; dz++) {
-                    int distance = dx * dx + dy * dy + dz * dz;
-                    if (distance > radiusSquared) {
-                        continue;
-                    }
-                    if (distance == radiusSquared
-                            && Deterministic.unit(seed, worldX + dx, worldZ + dz, 3 + dy) < 0.45f) {
-                        continue;
-                    }
-                    int leafX = x + dx;
-                    int leafY = crownCentre + dy;
-                    int leafZ = z + dz;
-                    if (writer.get(leafX, leafY, leafZ).isAir()) {
-                        writer.set(leafX, leafY, leafZ, blocks.leaves);
-                    }
-                }
-            }
-        }
+    /** Da cuoi nam trong danh sach vi no la mat cua nui va dong bang da - bo ra la mat sach thong. */
+    private boolean isPlantable(Block block) {
+        return block == blocks.grass
+                || block == blocks.dirt
+                || block == blocks.sand
+                || block == blocks.cobblestone;
     }
 }

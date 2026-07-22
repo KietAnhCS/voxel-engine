@@ -11,7 +11,16 @@ public final class ChunkStorage {
     private final int sizeShift;
     private final int areaShift;
     private final byte[] blocks;
-    private final byte[] light;
+    /**
+     * Bo dem anh sang DANG DUOC DUNG DE VE.
+     *
+     * Luong mesh doc mang nay trong khi luong anh sang co the dang tinh lai chunk. Vi the
+     * {@link LightEngine} khong bao gio sua truc tiep vao day: no tinh tron mot ban moi
+     * roi goi {@link #commitLight} de doi sang - mot phep gan duy nhat. Nguoi doc luon
+     * thay mot ban day du, khong bao gio kip nhin thay mang vua bi xoa trang (do chinh
+     * la nguyen nhan lam chunk chop den).
+     */
+    private volatile byte[] light;
     private final short[] skyFloor;
     private int nonAirCount;
 
@@ -26,6 +35,12 @@ public final class ChunkStorage {
         Arrays.fill(skyFloor, (short) height);
     }
 
+    /**
+     * Trai mang 3 chieu ra mang 1 chieu. Vi chunkSize luon la luy thua cua 2 nen
+     * phep nhan duoc thay bang dich bit va phep cong bang OR.
+     *
+     * Do phuc tap: O(1) - ba phep tinh bit, khong co vong lap nao.
+     */
     public int index(int x, int y, int z) {
         return (y << areaShift) | (x << sizeShift) | z;
     }
@@ -71,22 +86,29 @@ public final class ChunkStorage {
         return sky > block ? sky : block;
     }
 
-    public void setSkyLight(int index, int value) {
-        light[index] = (byte) ((light[index] & 0x0F) | (value << 4));
+    /** Kich thuoc mot bo dem anh sang, de LightEngine tu cap phat ban dang tinh do. */
+    public int lightBufferSize() {
+        return size * size * height;
     }
 
-    public void setBlockLight(int index, int value) {
-        light[index] = (byte) ((light[index] & 0xF0) | value);
+    /** Byte anh sang tho cua ban DANG dung, de so xem ban vua tinh co khac khong. */
+    public byte rawLight(int index) {
+        return light[index];
     }
 
-    public void clearLight() {
-        Arrays.fill(light, (byte) 0);
+    /** Dua ban anh sang vua tinh xong vao su dung, thay cho ban cu. */
+    public void commitLight(byte[] rebuilt) {
+        this.light = rebuilt;
     }
 
     public int skyFloor(int x, int z) {
         return skyFloor[columnIndex(x, z)];
     }
 
+    /**
+     * Quet lai toan bo chunk de tim do cao khoi dac cao nhat cua tung cot.
+     * Do phuc tap: O(size^2 * height) - chi goi mot lan sau khi sinh xong chunk.
+     */
     public void rebuildSkyFloor() {
         for (int x = 0; x < size; x++) {
             for (int z = 0; z < size; z++) {
@@ -102,6 +124,13 @@ public final class ChunkStorage {
         }
     }
 
+    /**
+     * Cap nhat mot cot sau khi nguoi choi dat/pha mot khoi - re hon nhieu so voi
+     * {@link #rebuildSkyFloor()}.
+     *
+     * Do phuc tap: O(1) khi dat khoi; O(y) khi pha dung khoi tren cung (phai do
+     * xuong tim khoi dac ke tiep), O(1) khi pha khoi nam duoi mat.
+     */
     public void updateSkyFloor(int x, int y, int z, boolean placed) {
         int column = columnIndex(x, z);
         if (placed) {

@@ -1,0 +1,181 @@
+
+textureatlas.png
+size: 512,16
+format: RGBA8888
+filter: MipMapNearestLinear,Nearest
+repeat: none
+textures/birch_side
+  rotate: false
+  xy: 0, 0
+  size: 16, 16
+  orig: 16, 16
+  offset: 0, 0
+  index: -1
+textures/bricks
+  rotate: false
+  xy: 20, 0
+  size: 16, 16
+  orig: 16, 16
+  offset: 0, 0
+  index: -1
+textures/cactus_side
+  rotate: false
+  xy: 40, 0
+  size: 16, 16
+  orig: 16, 16
+  offset: 0, 0
+  index: -1
+textures/cactus_top
+  rotate: false
+  xy: 60, 0
+  size: 16, 16
+  orig: 16, 16
+  offset: 0, 0
+  index: -1
+textures/cobblestone
+  rotate: false
+  xy: 80, 0
+  size: 16, 16
+  orig: 16, 16
+  offset: 0, 0
+  index: -1
+textures/dead_bush
+  rotate: false
+  xy: 100, 0
+  size: 16, 16
+  orig: 16, 16
+  offset: 0, 0
+  index: -1
+textures/dirt
+  rotate: false
+  xy: 120, 0
+  size: 16, 16
+  orig: 16, 16
+  offset: 0, 0
+  index: -1
+textures/flower_red
+  rotate: false
+  xy: 140, 0
+  size: 16, 16
+  orig: 16, 16
+  offset: 0, 0
+  index: -1
+textures/flower_yellow
+  rotate: false
+  xy: 160, 0
+  size: 16, 16
+  orig: 16, 16
+  offset: 0, 0
+  index: -1
+textures/glowstone
+  rotate: false
+  xy: 180, 0
+  size: 16, 16
+  orig: 16, 16
+  offset: 0, 0
+  index: -1
+textures/grass_side
+  rotate: false
+  xy: 200, 0
+  size: 16, 16
+  orig: 16, 16
+  offset: 0, 0
+  index: -1
+textures/grass_top
+  rotate: false
+  xy: 220, 0
+  size: 16, 16
+  orig: 16, 16
+  offset: 0, 0
+  index: -1
+textures/gravel
+  rotate: false
+  xy: 240, 0
+  size: 16, 16
+  orig: 16, 16
+  offset: 0, 0
+  index: -1
+textures/ice
+  rotate: false
+  xy: 260, 0
+  size: 16, 16
+  orig: 16, 16
+  offset: 0, 0
+  index: -1
+textures/leaves_oak
+  rotate: false
+  xy: 280, 0
+  size: 16, 16
+  orig: 16, 16
+  offset: 0, 0
+  index: -1
+textures/leaves_pine
+  rotate: false
+  xy: 300, 0
+  size: 16, 16
+  orig: 16, 16
+  offset: 0, 0
+  index: -1
+textures/log_side
+  rotate: false
+  xy: 320, 0
+  size: 16, 16
+  orig: 16, 16
+  offset: 0, 0
+  index: -1
+textures/log_top
+  rotate: false
+  xy: 340, 0
+  size: 16, 16
+  orig: 16, 16
+  offset: 0, 0
+  index: -1
+textures/planks
+  rotate: false
+  xy: 360, 0
+  size: 16, 16
+  orig: 16, 16
+  offset: 0, 0
+  index: -1
+textures/sand
+  rotate: false
+  xy: 380, 0
+  size: 16, 16
+  orig: 16, 16
+  offset: 0, 0
+  index: -1
+textures/sandstone
+  rotate: false
+  xy: 400, 0
+  size: 16, 16
+  orig: 16, 16
+  offset: 0, 0
+  index: -1
+textures/snow
+  rotate: false
+  xy: 420, 0
+  size: 16, 16
+  orig: 16, 16
+  offset: 0, 0
+  index: -1
+textures/stone
+  rotate: false
+  xy: 440, 0
+  size: 16, 16
+  orig: 16, 16
+  offset: 0, 0
+  index: -1
+textures/tall_grass
+  rotate: false
+  xy: 460, 0
+  size: 16, 16
+  orig: 16, 16
+  offset: 0, 0
+  index: -1
+textures/water
+  rotate: false
+  xy: 480, 0
+  size: 16, 16
+  orig: 16, 16
+  offset: 0, 0
+  index: -1

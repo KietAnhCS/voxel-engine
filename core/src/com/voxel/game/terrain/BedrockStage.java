@@ -1,11 +1,11 @@
 package com.voxel.game.terrain;
 
 import com.voxel.engine.block.Block;
-import com.voxel.engine.generation.TerrainSample;
 import com.voxel.engine.generation.TerrainStage;
 import com.voxel.game.Blocks;
 
-public final class BedrockStage extends TerrainStage {
+/** Lop day the gioi: khong the dao xuyen. */
+public final class BedrockStage extends TerrainStage<ColumnSample> {
 
     private final Blocks blocks;
 
@@ -14,7 +14,7 @@ public final class BedrockStage extends TerrainStage {
     }
 
     @Override
-    protected Block tryResolve(TerrainSample sample, int x, int y, int z) {
-        return y == 0 ? blocks.shale : null;
+    protected Block tryResolve(ColumnSample sample, int x, int y, int z) {
+        return y == 0 ? blocks.cobblestone : null;
     }
 }

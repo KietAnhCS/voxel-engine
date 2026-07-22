@@ -6,6 +6,9 @@ public final class Block {
 
     public static final int MAX_LIGHT = 15;
 
+    /** Muc day cua mot o chat long: 8 la khoi nguon (day o), 1 la mep mong nhat. */
+    public static final int MAX_FLUID_LEVEL = 8;
+
     private final byte id;
     private final String name;
     private final BlockGeometry geometry;
@@ -17,7 +20,7 @@ public final class Block {
     private final int luminance;
     private final boolean opaque;
     private final boolean collidable;
-    private final boolean liquid;
+    private final int fluidLevel;
     private final boolean windAffected;
 
     private Block(Builder builder, byte id) {
@@ -32,7 +35,7 @@ public final class Block {
         this.luminance = builder.luminance;
         this.opaque = builder.opaque;
         this.collidable = builder.collidable;
-        this.liquid = builder.liquid;
+        this.fluidLevel = builder.fluidLevel;
         this.windAffected = builder.windAffected;
     }
 
@@ -83,7 +86,12 @@ public final class Block {
     }
 
     public boolean isLiquid() {
-        return liquid;
+        return fluidLevel > 0;
+    }
+
+    /** 0 neu khong phai chat long, nguoc lai la 1..{@value #MAX_FLUID_LEVEL}. */
+    public int fluidLevel() {
+        return fluidLevel;
     }
 
     public boolean isWindAffected() {
@@ -115,7 +123,7 @@ public final class Block {
         private int luminance = 0;
         private boolean opaque = true;
         private boolean collidable = true;
-        private boolean liquid = false;
+        private int fluidLevel = 0;
         private boolean windAffected = false;
 
         private Builder(String name) {
@@ -166,8 +174,12 @@ public final class Block {
             return this;
         }
 
-        public Builder liquid() {
-            this.liquid = true;
+        /**
+         * @param level do day cua o: {@value #MAX_FLUID_LEVEL} la khoi nguon, so cang
+         *              nho o cang can (nuoc chay cang xa nguon).
+         */
+        public Builder liquid(int level) {
+            this.fluidLevel = Math.min(MAX_FLUID_LEVEL, Math.max(1, level));
             this.collidable = false;
             this.opaque = false;
             return this;

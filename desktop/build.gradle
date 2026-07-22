@@ -1,7 +1,7 @@
 apply plugin: "java"
 
-project.ext.mainClassName = "st.rhapsody.voxelengine.desktop.DesktopLauncher"
-project.ext.assetsDir = file("../android/assets")
+project.ext.mainClassName = "com.voxel.desktop.DesktopLauncher"
+project.ext.assetsDir = file("../assets")
 
 sourceSets.main.java.srcDirs = ["src/"]
 
@@ -16,6 +16,22 @@ task run(type: JavaExec) {
             '--add-opens', 'java.base/java.nio=ALL-UNNAMED',
             '--add-opens', 'java.base/sun.nio.ch=ALL-UNNAMED'
     ]
+}
+
+// Dong goi lai texturepacker/textures/*.png thanh assets/data/textureatlas.png
+task packTextures(type: JavaExec) {
+    def packerDir = file("../texturepacker")
+    mainClass = "com.badlogic.gdx.tools.texturepacker.TexturePacker"
+    classpath = files("$packerDir/gdx.jar", "$packerDir/extensions/gdx-tools/gdx-tools.jar")
+    args = [packerDir.absolutePath, file("../assets/data").absolutePath, "textureatlas"]
+}
+
+// Sinh thu vai chunk roi in thong ke (khong can cua so do hoa).
+task worldProbe(type: JavaExec) {
+    dependsOn classes
+    mainClass = "com.voxel.game.tools.WorldProbe"
+    classpath = sourceSets.main.runtimeClasspath
+    ignoreExitValue = true
 }
 
 dependencies {
