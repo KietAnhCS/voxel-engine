@@ -83,6 +83,8 @@ public final class VoxelEngine implements Disposable {
     private float bobPhase;
     private boolean submerged;
     private boolean spawnSettled;
+    /** True khi tai the gioi cu: giu nguyen vi tri da luu thay vi tim mat dat de tha xuong. */
+    private final boolean restorePlacement;
 
     private VoxelEngine(Builder builder) {
         this.config = new EngineConfig(builder.chunkSize, builder.worldHeight, builder.viewDistance,
@@ -117,6 +119,12 @@ public final class VoxelEngine implements Disposable {
 
         this.fluids = builder.waterLevels == null ? null : new FluidSimulator(world, builder.waterLevels);
         world.installFluids(fluids);
+
+        // Nap lai cac o khoi da luu TRUOC khi sinh chunk dau tien, de the gioi da xay hien lai.
+        for (int[] edit : builder.loadedEdits) {
+            world.queueLoadedEdit(edit[0], edit[1], edit[2], (byte) edit[3]);
+        }
+        this.restorePlacement = builder.restorePlacement;
 
         this.spawn.set(builder.spawn);
         this.player = physics.spawnPlayer(builder.spawn);
@@ -207,6 +215,14 @@ public final class VoxelEngine implements Disposable {
         Chunk chunk = world.chunkAt(chunkX, chunkZ);
         if (chunk == null || chunk.state() != ChunkState.MESHED) {
             return false;
+        }
+
+        // Tai the gioi cu: cho chunk ghep xong (khoi va cham san sang) roi dat nguoi choi
+        // dung vi tri da luu - KHONG tinh lai mat dat, neu khong se roi tot xuong noc nha da xay.
+        if (restorePlacement) {
+            player.teleport(spawn);
+            spawnSettled = true;
+            return true;
         }
 
         int blockX = (int) Math.floor(spawn.x);
@@ -458,6 +474,8 @@ public final class VoxelEngine implements Disposable {
         private PerspectiveCamera camera;
         private Vector3 spawn = new Vector3(8f, 90f, 8f);
         private Block[] waterLevels;
+        private final java.util.List<int[]> loadedEdits = new java.util.ArrayList<int[]>();
+        private boolean restorePlacement;
 
         private Builder() {
         }
@@ -514,6 +532,18 @@ public final class VoxelEngine implements Disposable {
 
         public Builder spawn(Vector3 spawn) {
             this.spawn = spawn;
+            return this;
+        }
+
+        /** Them mot o khoi da luu ({x, y, z, blockId}) can dat lai khi the gioi sinh ra. */
+        public Builder loadedEdit(int worldX, int worldY, int worldZ, int blockId) {
+            this.loadedEdits.add(new int[]{worldX, worldY, worldZ, blockId});
+            return this;
+        }
+
+        /** Bat che do tai the gioi cu: giu nguyen vi tri {@link #spawn} thay vi tim mat dat. */
+        public Builder restorePlacement(boolean restorePlacement) {
+            this.restorePlacement = restorePlacement;
             return this;
         }
 

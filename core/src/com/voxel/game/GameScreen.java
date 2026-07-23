@@ -17,6 +17,12 @@ import com.voxel.engine.block.BlockRegistry;
 import com.voxel.engine.input.BlockInteraction;
 import com.voxel.engine.physics.VoxelRaycaster;
 import com.voxel.engine.world.World;
+import com.voxel.game.net.Edit;
+import com.voxel.game.net.PlayerState;
+import com.voxel.game.net.RemotePlayerRenderer;
+import com.voxel.game.net.Session;
+import com.voxel.game.net.WorldClient;
+import com.voxel.game.play.GameMode;
 import com.voxel.game.play.PlaySession;
 import com.voxel.game.terrain.OverworldChunkFactory;
 import com.voxel.game.terrain.TerrainNoise;
@@ -28,6 +34,18 @@ public final class GameScreen extends ScreenAdapter implements BlockInteraction 
     private static final int SEA_LEVEL = 48;
     private static final int VIEW_DISTANCE = 7;
     private static final float MIN_PLACEMENT_DISTANCE = 1.6f;
+    /** Gui vi tri nguoi choi len server 15 lan/giay - du muot ma khong nghen mang. */
+    private static final float MOVE_SEND_INTERVAL = 1f / 15f;
+
+    /** Chi gui vi tri khi da nhuc nhich qua bay nhieu - dung phi mang luc dung yen. */
+    private static final float MOVE_EPSILON = 0.02f;
+
+    private final Session session;
+    private WorldClient worldClient;
+    private RemotePlayerRenderer remoteRenderer;
+    private float moveTimer;
+    private float lastSentX, lastSentY, lastSentZ, lastSentYaw, lastSentPitch;
+    private boolean sentOnce;
 
     private PerspectiveCamera camera;
     private TextureAtlas atlas;
@@ -41,15 +59,26 @@ public final class GameScreen extends ScreenAdapter implements BlockInteraction 
     private Texture crosshair;
     private final GlyphLayout layout = new GlyphLayout();
 
+    public GameScreen(Session session) {
+        this.session = session;
+    }
+
     @Override
     public void show() {
-        long seed = System.nanoTime();
+        // Hat giong lay tu the gioi da luu tren server, KHONG ngau nhien: dia hinh sinh lai y het.
+        long seed = session.world.seed;
+        PlayerState saved = session.world.player;
+        boolean fresh = saved.isFresh();
 
         camera = new PerspectiveCamera(72f, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
         camera.near = 0.1f;
         camera.far = VIEW_DISTANCE * 16f + 48f;
-        camera.direction.set(0f, 0f, 1f);
         camera.up.set(Vector3.Y);
+        if (fresh) {
+            camera.direction.set(0f, 0f, 1f);
+        } else {
+            aimCameraFrom(saved.yaw, saved.pitch);
+        }
         camera.update();
 
         atlas = new TextureAtlas(Gdx.files.internal("data/textureatlas.atlas"));
@@ -60,9 +89,12 @@ public final class GameScreen extends ScreenAdapter implements BlockInteraction 
         biomes = new BiomeSource(blocks, noise);
 
         OverworldChunkFactory chunkFactory = new OverworldChunkFactory(blocks, biomes, noise, WORLD_HEIGHT);
-        Vector3 spawn = chunkFactory.spawnPoint(0, 0);
+        // The gioi moi: rot xuong diem xuat phat va tim mat dat. The gioi cu: dat dung vi tri da luu.
+        // VOXEL_SPAWN_X/Z cho phep dat diem xuat phat khac nhau (dung khi demo nhieu nguoi 1 map).
+        Vector3 spawn = fresh ? chunkFactory.spawnPoint(intEnv("VOXEL_SPAWN_X", 0), intEnv("VOXEL_SPAWN_Z", 0))
+                : new Vector3(saved.x, saved.y, saved.z);
 
-        engine = VoxelEngine.builder()
+        VoxelEngine.Builder builder = VoxelEngine.builder()
                 .chunkSize(16)
                 .worldHeight(WORLD_HEIGHT)
                 .viewDistance(VIEW_DISTANCE)
@@ -73,9 +105,21 @@ public final class GameScreen extends ScreenAdapter implements BlockInteraction 
                 .atlas(atlas)
                 .camera(camera)
                 .spawn(spawn)
-                .water(blocks.waterLevels())
-                .build();
+                .restorePlacement(!fresh)
+                .water(blocks.waterLevels());
+
+        // Nap tung o khoi da xay vao engine truoc khi sinh chunk.
+        for (Edit edit : session.world.edits) {
+            builder.loadedEdit(edit.x, edit.y, edit.z, edit.blockId);
+        }
+
+        engine = builder.build();
         engine.setInteraction(this);
+
+        // Mo ket noi the gioi chung: tu day thay nguoi choi khac va o khoi ho dat/pha theo thoi gian thuc.
+        worldClient = new WorldClient(session);
+        worldClient.connect();
+        remoteRenderer = new RemotePlayerRenderer();
 
         ui = new SpriteBatch();
         font = new BitmapFont();
@@ -83,6 +127,8 @@ public final class GameScreen extends ScreenAdapter implements BlockInteraction 
         crosshair = new Texture(Gdx.files.internal("data/crosshair.png"));
 
         play = new PlaySession(engine, blocks, atlas, font);
+        // Khoi phuc che do choi da luu (0 = sinh ton, 1 = sang tao).
+        play.setMode(saved.mode == 0 ? GameMode.SURVIVAL : GameMode.CREATIVE);
         // Giao dien duoc hoi truoc: khi tui do hay khung chat dang mo thi no giu lai
         // phim bam, khong cho lot xuong phan dieu khien nhan vat.
         Gdx.input.setInputProcessor(new InputMultiplexer(play, engine.controller()));
@@ -90,9 +136,82 @@ public final class GameScreen extends ScreenAdapter implements BlockInteraction 
 
     @Override
     public void render(float delta) {
+        applyRemoteEdits();
         engine.render(delta);
+        // Ve avatar nguoi choi khac SAU khi engine ve xong the gioi (dung chung camera va bo dem do sau).
+        worldClient.players().advance(delta);
+        remoteRenderer.render(camera, worldClient.players());
+        sendLocalState(delta);
         play.update(delta);
         drawOverlay();
+    }
+
+    /** Lay het o khoi nguoi khac vua sua tu hang doi va ap vao the gioi (chay tren luong game). */
+    private void applyRemoteEdits() {
+        int[] edit;
+        while ((edit = worldClient.pollRemoteEdit()) != null) {
+            engine.world().applyRemoteEdit(edit[0], edit[1], edit[2], registry.byId((byte) edit[3]));
+        }
+    }
+
+    /**
+     * Gui vi tri + huong nhin cua nguoi choi nay len server, toi da {@link #MOVE_SEND_INTERVAL}
+     * mot lan VA chi khi that su co thay doi - dung yen thi khong gui gi de do ton mang.
+     */
+    private void sendLocalState(float delta) {
+        moveTimer += delta;
+        if (moveTimer < MOVE_SEND_INTERVAL) {
+            return;
+        }
+        moveTimer = 0f;
+
+        Vector3 pos = engine.playerPosition();
+        float yaw = yaw();
+        float pitch = pitch();
+        if (sentOnce && !movedSince(pos, yaw, pitch)) {
+            return;
+        }
+
+        worldClient.sendMove(pos.x, pos.y, pos.z, yaw, pitch);
+        lastSentX = pos.x;
+        lastSentY = pos.y;
+        lastSentZ = pos.z;
+        lastSentYaw = yaw;
+        lastSentPitch = pitch;
+        sentOnce = true;
+    }
+
+    /** True neu vi tri hoac huong nhin da lech qua {@link #MOVE_EPSILON} so voi lan gui truoc. */
+    private boolean movedSince(Vector3 pos, float yaw, float pitch) {
+        return Math.abs(pos.x - lastSentX) > MOVE_EPSILON
+                || Math.abs(pos.y - lastSentY) > MOVE_EPSILON
+                || Math.abs(pos.z - lastSentZ) > MOVE_EPSILON
+                || Math.abs(yaw - lastSentYaw) > MOVE_EPSILON
+                || Math.abs(pitch - lastSentPitch) > MOVE_EPSILON;
+    }
+
+    /** Doc mot bien moi truong so nguyen, tra ve {@code fallback} neu khong co / khong hop le. */
+    private static int intEnv(String name, int fallback) {
+        String value = System.getenv(name);
+        if (value == null || value.isBlank()) {
+            return fallback;
+        }
+        try {
+            return Integer.parseInt(value.trim());
+        } catch (NumberFormatException invalid) {
+            return fallback;
+        }
+    }
+
+    /** Quay camera theo yaw/pitch da luu (do) - dao nguoc phep tinh trong {@link #yaw}/{@link #pitch}. */
+    private void aimCameraFrom(float yawDegrees, float pitchDegrees) {
+        double yawRad = Math.toRadians(yawDegrees);
+        double pitchRad = Math.toRadians(pitchDegrees);
+        float horizontal = (float) Math.cos(pitchRad);
+        camera.direction.set(
+                (float) Math.sin(yawRad) * horizontal,
+                (float) -Math.sin(pitchRad),
+                (float) Math.cos(yawRad) * horizontal).nor();
     }
 
     private void drawOverlay() {
@@ -202,8 +321,11 @@ public final class GameScreen extends ScreenAdapter implements BlockInteraction 
     @Override
     public void onBreak(World world, VoxelRaycaster.Hit hit) {
         Block broken = world.blockAt(hit.blockX(), hit.blockY(), hit.blockZ());
-        world.setBlock(hit.blockX(), hit.blockY(), hit.blockZ(), blocks.air);
-        play.onBreak(broken);
+        if (world.setBlock(hit.blockX(), hit.blockY(), hit.blockZ(), blocks.air)) {
+            // Bao server o vua bi pha (blockId 0 = khong khi) de luu va phat cho nguoi choi khac.
+            worldClient.sendEdit(hit.blockX(), hit.blockY(), hit.blockZ(), 0);
+            play.onBreak(broken);
+        }
     }
 
     @Override
@@ -222,8 +344,9 @@ public final class GameScreen extends ScreenAdapter implements BlockInteraction 
         // Hoi tui do TRUOC khi dat: o che do sinh ton thao tac nay bot mot khoi,
         // nen chi duoc goi khi cho dat da hop le.
         Block block = play.blockToPlace(alternate);
-        if (block != null) {
-            world.setBlock(x, y, z, block);
+        if (block != null && world.setBlock(x, y, z, block)) {
+            // Bao server o vua dat de luu va phat cho nguoi choi khac.
+            worldClient.sendEdit(x, y, z, block.id() & 0xFF);
         }
     }
 
@@ -239,6 +362,10 @@ public final class GameScreen extends ScreenAdapter implements BlockInteraction 
 
     @Override
     public void dispose() {
+        // Bao server minh thoat de cac may khac bo avatar cua minh.
+        worldClient.close();
+
+        remoteRenderer.dispose();
         play.dispose();
         engine.dispose();
         atlas.dispose();

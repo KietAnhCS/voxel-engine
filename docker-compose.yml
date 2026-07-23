@@ -1,0 +1,40 @@
+# Chay ca he thong backend bang mot lenh: docker compose up
+#
+#   - db:     PostgreSQL luu tai khoan + the gioi
+#   - server: Spring Boot (REST API) ma game LibGDX goi vao
+#
+# Game LibGDX KHONG chay trong Docker - no chay truc tiep tren may ban (gradlew :desktop:run)
+# va goi toi server o dia chi http://localhost:8080.
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: voxel
+      POSTGRES_USER: voxel
+      POSTGRES_PASSWORD: voxel
+    ports:
+      - "5432:5432"
+    volumes:
+      # Giu du lieu lai ca khi tat container - khong mat the gioi da xay.
+      - voxel-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U voxel -d voxel"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  server:
+    build: ./server
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:postgresql://db:5432/voxel
+      DB_USER: voxel
+      DB_PASSWORD: voxel
+      JWT_SECRET: doi-khoa-nay-thanh-mot-chuoi-that-dai-va-bi-mat-cho-san-xuat
+    ports:
+      - "8080:8080"
+
+volumes:
+  voxel-db-data:

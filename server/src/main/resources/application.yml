@@ -1,0 +1,28 @@
+# Cau hinh server. Cac gia tri ${...} lay tu bien moi truong (Docker dat san),
+# neu khong co thi dung gia tri sau dau ":" - tien cho chay tay luc phat trien.
+server:
+  port: 8080
+  error:
+    # Cho phep tra kem loi dang chu (vd "Ten dang nhap da ton tai") de game hien len man dang nhap.
+    include-message: always
+
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/voxel}
+    username: ${DB_USER:voxel}
+    password: ${DB_PASSWORD:voxel}
+  jpa:
+    hibernate:
+      # update: tu tao/sua bang theo cac @Entity khi khoi dong. Du dung cho bai tap.
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+    open-in-view: false
+
+# Khoa bi mat de ky JWT. Phai dai >= 32 ky tu cho thuat toan HS256.
+voxel:
+  jwt:
+    secret: ${JWT_SECRET:doi-khoa-nay-thanh-mot-chuoi-that-dai-va-bi-mat-32+}
+    # Thoi han the dang nhap: 7 ngay (tinh bang mili giay).
+    expiration-millis: 604800000

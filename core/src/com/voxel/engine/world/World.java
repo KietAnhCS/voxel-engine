@@ -213,6 +213,30 @@ public final class World {
         }
     }
 
+    /**
+     * Nap mot o khoi da luu tu backend vao hang cho, TRUOC khi chunk duoc sinh ra.
+     * Khi chunk sinh xong, {@link #applyPendingEdits} se tu dat lai o nay len tren dia hinh goc.
+     * Nho vay the gioi da xay hien lai dung nhu luc thoat game.
+     */
+    public void queueLoadedEdit(int worldX, int worldY, int worldZ, byte blockId) {
+        if (worldY < 0 || worldY >= config.worldHeight()) {
+            return;
+        }
+        int size = config.chunkSize();
+        int mask = config.chunkMask();
+        long key = ChunkKey.of(Math.floorDiv(worldX, size), Math.floorDiv(worldZ, size));
+
+        Collection<PendingEdit> queue = pendingEdits.get(key);
+        if (queue == null) {
+            queue = new ConcurrentLinkedQueue<PendingEdit>();
+            Collection<PendingEdit> existing = pendingEdits.putIfAbsent(key, queue);
+            if (existing != null) {
+                queue = existing;
+            }
+        }
+        queue.add(new PendingEdit(worldX & mask, worldY, worldZ & mask, blockId));
+    }
+
     private void applyPendingEdits(Chunk chunk) {
         Collection<PendingEdit> edits = pendingEdits.remove(chunk.key());
         if (edits == null) {
@@ -301,6 +325,20 @@ public final class World {
         relightAsync(chunk, true);
         touchNeighbourChunks(chunk, worldX & mask, worldZ & mask);
         return true;
+    }
+
+    /**
+     * Dat mot o khoi do NGUOI CHOI KHAC sua (den qua mang). Neu chunk da tai thi sua ngay de
+     * thay lien; neu chunk chua tai thi xep vao hang cho de dat lai dung luc chunk sinh ra -
+     * nho vay o khoi khong bi mat khi ta di toi vung do sau nay.
+     */
+    public void applyRemoteEdit(int worldX, int worldY, int worldZ, Block block) {
+        Chunk chunk = chunkContaining(worldX, worldZ);
+        if (chunk != null && chunk.isReadable()) {
+            setBlock(worldX, worldY, worldZ, block);
+        } else {
+            queueLoadedEdit(worldX, worldY, worldZ, block.id());
+        }
     }
 
     /**
