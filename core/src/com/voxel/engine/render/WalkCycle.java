@@ -28,6 +28,8 @@ public final class WalkCycle {
     private float phase;
     private float amount;
     private float armSwing;
+    /** Dong ho rieng cho cu dong "tho": tay kha khe dua ngay ca khi dung yen. */
+    private float time;
 
     /**
      * Chay mot khung hinh.
@@ -42,6 +44,7 @@ public final class WalkCycle {
         }
         phase += distance * STRIDE;
         armSwing = Math.max(0f, armSwing - delta * ARM_DECAY);
+        time += delta;
     }
 
     /** Quo tay phai ra mot cai - goi khi danh, pha hoac dat khoi. */
@@ -57,5 +60,13 @@ public final class WalkCycle {
     /** Goc tay phai vong ra truoc roi ve cho khi danh (do). */
     public float punchAngle() {
         return (float) Math.sin(armSwing * Math.PI) * PUNCH_ANGLE;
+    }
+
+    /**
+     * Cu dua tay rat nhe theo thoi gian (nhu tho) - lam nhan vat dung yen van "song".
+     * Hai tan so lech nhau chut xiu nen cu dong khong bao gio lap lai y het (hoc Minecraft).
+     */
+    public float idleSway() {
+        return (float) (Math.sin(time * 1.13) * 2.2 + Math.sin(time * 1.91) * 0.8);
     }
 }

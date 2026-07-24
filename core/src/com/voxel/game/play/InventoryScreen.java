@@ -107,8 +107,10 @@ public final class InventoryScreen {
     }
 
     private void layout(int screenWidth, int screenHeight) {
-        panelX = (screenWidth - px(PANEL_W)) * 0.5f;
-        panelY = (screenHeight - px(PANEL_H)) * 0.5f;
+        // LAM TRON xuong diem anh nguyen: man hinh co canh LE thi tam bang roi vao toa do
+        // .5, moi vien ve bang loc NEAREST bi nhoe va cac o nhin nhu lech nhau 1 diem anh.
+        panelX = Math.round((screenWidth - px(PANEL_W)) * 0.5f);
+        panelY = Math.round((screenHeight - px(PANEL_H)) * 0.5f);
     }
 
     /** Doi toa do y kieu Minecraft (tu tren xuong) sang kieu libGDX (tu duoi len). */
@@ -132,7 +134,7 @@ public final class InventoryScreen {
         ui.panel(batch, panelX, panelY, px(PANEL_W), px(PANEL_H));
 
         font.setColor(MinecraftUi.TEXT_DARK);
-        font.draw(batch, mode.isCreative() ? "Kho khoi" : "Che tao",
+        font.draw(batch, mode.isCreative() ? "Blocks" : "Crafting",
                 slotX(7f), slotY(5f, 0f));
         font.setColor(Color.WHITE);
 

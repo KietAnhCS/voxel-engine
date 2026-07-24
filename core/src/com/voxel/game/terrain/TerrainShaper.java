@@ -10,6 +10,8 @@ import com.voxel.game.terrain.biome.BiomeSource;
 import com.voxel.game.terrain.carve.CheeseCaveCarver;
 import com.voxel.game.terrain.carve.PerlinWormCarver;
 import com.voxel.game.terrain.carve.RavineCarver;
+import com.voxel.game.terrain.carve.SpaghettiCaveCarver;
+import com.voxel.game.terrain.structure.StructureCarver;
 
 /**
  * Facade cua toan bo qua trinh sinh the gioi. Chunk chi can goi ba viec:
@@ -44,7 +46,10 @@ public final class TerrainShaper {
         this.carvers = CarverPipeline.of(
                 new PerlinWormCarver(noise, blocks, seed),
                 new RavineCarver(noise, blocks, seed),
-                new CheeseCaveCarver(noise, blocks));
+                new CheeseCaveCarver(noise, blocks),
+                new SpaghettiCaveCarver(noise, blocks),
+                // Structures build LAST so towers and pyramids stand on carved terrain.
+                new StructureCarver(this, blocks, seed));
     }
 
     public void sample(int worldX, int worldZ, ColumnSample out) {

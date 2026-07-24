@@ -20,6 +20,11 @@ import java.util.Random;
  */
 public final class MonsterManager implements Disposable {
 
+    /** Whoever wants to know when an explosion destroys a block (to sync it over the network). */
+    public interface ExplosionListener {
+        void blockDestroyed(int x, int y, int z);
+    }
+
     private static final int MAX_MONSTERS = 4;
     private static final float SPAWN_INTERVAL = 6f;
     private static final float MIN_SPAWN_DIST = 12f;
@@ -29,8 +34,16 @@ public final class MonsterManager implements Disposable {
     private static final int MAX_SPAWN_LIGHT = 7;
     /** Anh sang troi tu muc nay tro len giua ban ngay la quai chay nang. */
     private static final int SUNBURN_LIGHT = 12;
+    /** Chance that a night spawn is a creeper instead of a zombie. */
+    private static final float CREEPER_CHANCE = 0.35f;
+    /** Explosion: blocks inside this radius are destroyed (like a Minecraft TNT crater). */
+    private static final float BLAST_RADIUS = 2.8f;
+    /** Explosion hurts the player inside this range, scaled down with distance. */
+    private static final float BLAST_HURT_RANGE = 5f;
+    private static final int BLAST_MAX_DAMAGE = 24;
 
     private final World world;
+    private final com.voxel.game.Blocks blocks;
     private final PlayerTarget player;
     private final MonsterContext context;
     private final MonsterRenderer renderer = new MonsterRenderer();
@@ -39,11 +52,18 @@ public final class MonsterManager implements Disposable {
     private float spawnTimer;
     /** So con vua bi nguoi choi ha, cho {@code PlaySession} lay ra de cong kinh nghiem. */
     private int kills;
+    private ExplosionListener explosionListener;
 
-    public MonsterManager(World world, PlayerTarget player) {
+    public MonsterManager(World world, com.voxel.game.Blocks blocks, PlayerTarget player) {
         this.world = world;
+        this.blocks = blocks;
         this.player = player;
         this.context = new MonsterContext(world, new AStarPathFinder(world), player);
+    }
+
+    /** Registers the callback that mirrors destroyed blocks to the server. */
+    public void setExplosionListener(ExplosionListener listener) {
+        this.explosionListener = listener;
     }
 
     /**
@@ -74,9 +94,57 @@ public final class MonsterManager implements Disposable {
             }
             burnInSunlight(monster, delta, night);
             monster.update(context, delta);
+            // Creeper whose fuse ran out: swap the mob for a crater.
+            if (monster.isExploding()) {
+                explode(monster);
+                it.remove();
+                continue;
+            }
             if (MonsterContext.horizontalDist(monster.position(), player.position()) > DESPAWN_DIST) {
                 it.remove();
             }
+        }
+    }
+
+    /**
+     * A creeper explosion, Minecraft TNT style: carve a spherical crater out of the world
+     * (water stays - liquids absorb the blast) and hurt the player by how close they stand.
+     * Every destroyed block is reported to the listener so other players see the crater too.
+     */
+    private void explode(Monster creeper) {
+        Vector3 at = creeper.position();
+        int centerX = (int) Math.floor(at.x);
+        int centerY = (int) Math.floor(at.y) + 1;
+        int centerZ = (int) Math.floor(at.z);
+        int reach = (int) Math.ceil(BLAST_RADIUS);
+        float radius2 = BLAST_RADIUS * BLAST_RADIUS;
+
+        for (int dx = -reach; dx <= reach; dx++) {
+            for (int dy = -reach; dy <= reach; dy++) {
+                for (int dz = -reach; dz <= reach; dz++) {
+                    if (dx * dx + dy * dy + dz * dz > radius2) {
+                        continue;
+                    }
+                    int x = centerX + dx;
+                    int y = centerY + dy;
+                    int z = centerZ + dz;
+                    if (y <= 1) {
+                        continue;
+                    }
+                    var block = world.blockAt(x, y, z);
+                    if (block.isAir() || block.isLiquid()) {
+                        continue;
+                    }
+                    if (world.setBlock(x, y, z, blocks.air) && explosionListener != null) {
+                        explosionListener.blockDestroyed(x, y, z);
+                    }
+                }
+            }
+        }
+
+        float distance = MonsterContext.horizontalDist(at, player.position());
+        if (distance < BLAST_HURT_RANGE && !player.isDead()) {
+            player.hit(Math.round(BLAST_MAX_DAMAGE * (1f - distance / BLAST_HURT_RANGE)));
         }
     }
 
@@ -133,7 +201,9 @@ public final class MonsterManager implements Disposable {
         if (random.nextInt(MAX_SPAWN_LIGHT + 1) < light) {
             return;
         }
-        monsters.add(new Monster(x + 0.5f, y, z + 0.5f));
+        Monster.Kind kind = random.nextFloat() < CREEPER_CHANCE
+                ? Monster.Kind.CREEPER : Monster.Kind.ZOMBIE;
+        monsters.add(new Monster(kind, x + 0.5f, y, z + 0.5f));
     }
 
     /** Ban ngay ma dung phoi nang giua troi thi quai chay dan roi boc hoi. */

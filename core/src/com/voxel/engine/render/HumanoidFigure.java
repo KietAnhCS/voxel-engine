@@ -93,16 +93,29 @@ public final class HumanoidFigure implements Disposable {
      * @param yaw  huong mat quay ve (do)
      */
     public void pose(Vector3 feet, float yaw, WalkCycle cycle) {
+        pose(feet, yaw, cycle, 0f);
+    }
+
+    /**
+     * Nhu {@link #pose(Vector3, float, WalkCycle)} nhung co the NANG hai tay ra truoc.
+     *
+     * @param armRaise goc nang tay ve phia truoc (do); 0 = tha doc, ~85 = tu the zombie
+     */
+    public void pose(Vector3 feet, float yaw, WalkCycle cycle, float armRaise) {
         instance.transform.setToTranslation(feet).rotate(Vector3.Y, yaw);
 
         // Chan trai / chan phai vung NGUOC chieu nhau -> chan truoc chan sau nhu dang buoc.
-        // Tay vung nguoc lai voi chan cung ben, cong them cu quo tay khi danh.
+        // Tay vung nguoc lai voi chan cung ben, cong them cu quo tay khi danh va cu dua
+        // rat nhe khi dung yen (idleSway) cho nhan vat "song". Tay dang gio (zombie) thi
+        // chi con vung nhe theo buoc chan.
         float swing = cycle.legAngle();
         float punch = cycle.punchAngle();
+        float idle = cycle.idleSway();
+        float armSwing = armRaise > 0f ? swing * 0.15f : swing;
         swingLimb(LEG_LEFT, swing, HIP_Y);
         swingLimb(LEG_RIGHT, -swing, HIP_Y);
-        swingLimb(ARM_LEFT, -swing, SHOULDER_Y);
-        swingLimb(ARM_RIGHT, swing - punch, SHOULDER_Y);
+        swingLimb(ARM_LEFT, -armSwing - armRaise + idle, SHOULDER_Y);
+        swingLimb(ARM_RIGHT, armSwing - punch - armRaise - idle, SHOULDER_Y);
     }
 
     /**

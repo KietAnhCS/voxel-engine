@@ -42,7 +42,7 @@ public final class Hud {
     /** Kich thuoc o hoi sinh tren man hinh chet (diem anh giao dien). */
     private static final float BUTTON_W = 90f;
     private static final float BUTTON_H = 20f;
-    private static final String RESPAWN_TEXT = "HOI SINH";
+    private static final String RESPAWN_TEXT = "RESPAWN";
 
     private final Inventory inventory;
     private final PlayerStats stats;
@@ -75,13 +75,17 @@ public final class Hud {
      */
     public void draw(SpriteBatch batch, int width, int height, GameMode mode, boolean inventoryOpen) {
         // Vignette phu len the gioi (duoi moi thu HUD) cho khung hinh "dien anh".
-        batch.setColor(Color.WHITE);
-        batch.draw(ui.vignette, 0f, 0f, width, height);
+        // Tat duoc trong Settings neu thich hinh sang deu.
+        if (com.voxel.engine.GameSettings.get().vignetteEnabled()) {
+            batch.setColor(Color.WHITE);
+            batch.draw(ui.vignette, 0f, 0f, width, height);
+        }
 
         drawDamageFlash(batch, width, height);
 
         if (!inventoryOpen) {
-            float barX = (width - px(BAR_WIDTH)) * 0.5f;
+            // Lam tron nhu InventoryScreen: thanh nhanh nam giua man hinh le van sac net.
+            float barX = Math.round((width - px(BAR_WIDTH)) * 0.5f);
             drawHotbar(batch, barX);
 
             if (mode.isSurvival()) {
@@ -95,7 +99,7 @@ public final class Hud {
             drawSelectedName(batch, width, mode);
         }
 
-        drawChat(batch);
+        drawChat(batch, width);
         if (stats.isDead()) {
             drawDeathScreen(batch, width, height);
         }
@@ -148,7 +152,9 @@ public final class Hud {
                     * Math.min(1f, Gdx.graphics.getDeltaTime() * SELECT_SLIDE_SPEED);
         }
 
-        float selectX = x + px(animatedSlot * SLOT);
+        // Tam khung 24 phai trung tam O 20 (o bat dau sau vien 1px): lui 1px GUI sang trai,
+        // neu khong khung se LECH 1px ve ben phai so voi o dang chon.
+        float selectX = x - edge + px(animatedSlot * SLOT);
         float size = px(24f);
         batch.setColor(Color.BLACK);
         ui.frame(batch, selectX - edge, -edge, size + edge * 2f, size + edge * 2f, edge);
@@ -268,16 +274,24 @@ public final class Hud {
         font.setColor(Color.WHITE);
     }
 
-    private void drawChat(SpriteBatch batch) {
+    /**
+     * Khung chat kieu Minecraft: lich su o goc trai (dong dai tu xuong hang, cu thi mo dan),
+     * con o NHAP CHU la mot dai den chay het chieu ngang SAT DAY man hinh - go "/" thi la
+     * lenh, go chu thuong thi la chat gui cho ban be online.
+     */
+    private void drawChat(SpriteBatch batch, int width) {
         float margin = px(4f);
+        // Dong dai qua thi tu xuong hang, toi da nua man hinh nhu Minecraft.
+        float wrapWidth = Math.min(width * 0.55f, 640f);
         float y = px(ROW_AIR_Y + 22f);
         for (int i = console.lines().size() - 1; i >= 0; i--) {
             CommandConsole.Line line = console.lines().get(i);
-            float alpha = line.alpha();
-            layout.setText(font, line.text);
-            ui.rect(batch, Color.BLACK, alpha * 0.5f, margin, y - 4f, layout.width + 8f, layout.height + 10f);
+            // Dang mo khung chat thi doc lai duoc ca dong cu, giong Minecraft.
+            float alpha = console.isOpen() ? 1f : line.alpha();
             font.setColor(1f, 1f, 1f, alpha);
-            font.draw(batch, line.text, margin + 4f, y + layout.height + 1f);
+            layout.setText(font, line.text, font.getColor(), wrapWidth, com.badlogic.gdx.utils.Align.left, true);
+            ui.rect(batch, Color.BLACK, alpha * 0.5f, margin, y - 4f, layout.width + 8f, layout.height + 10f);
+            font.draw(batch, layout, margin + 4f, y + layout.height + 1f);
             y += layout.height + 12f;
         }
         font.setColor(Color.WHITE);
@@ -285,9 +299,11 @@ public final class Hud {
 
         if (console.isOpen()) {
             boolean caret = (System.currentTimeMillis() / 400L) % 2L == 0L;
-            ui.rect(batch, Color.BLACK, 0.7f, margin, px(ROW_AIR_Y + 8f), 640f, px(9f));
+            float barHeight = px(10f);
+            ui.rect(batch, Color.BLACK, 0.72f, px(2f), px(2f), width - px(4f), barHeight);
             font.setColor(Color.WHITE);
-            font.draw(batch, console.input() + (caret ? "_" : ""), margin + 4f, px(ROW_AIR_Y + 8f) + px(7f));
+            font.draw(batch, console.input() + (caret ? "_" : ""),
+                    px(2f) + 6f, px(2f) + (barHeight + font.getCapHeight()) * 0.5f);
         }
     }
 
@@ -301,7 +317,7 @@ public final class Hud {
     private void drawDeathScreen(SpriteBatch batch, int width, int height) {
         ui.rect(batch, Color.RED, 0.45f, 0f, 0f, width, height);
         batch.setColor(Color.WHITE);
-        center(batch, "BAN DA CHET!", width, height * 0.5f + px(30f));
+        center(batch, "YOU DIED!", width, height * 0.5f + px(30f));
 
         float buttonW = px(BUTTON_W);
         float buttonH = px(BUTTON_H);

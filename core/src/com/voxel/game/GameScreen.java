@@ -23,6 +23,8 @@ import com.voxel.game.net.PlayerState;
 import com.voxel.game.net.RemotePlayerRenderer;
 import com.voxel.game.net.Session;
 import com.voxel.game.net.WorldClient;
+import com.voxel.game.play.Command;
+import com.voxel.game.play.CommandConsole;
 import com.voxel.game.play.GameMode;
 import com.voxel.game.play.PlaySession;
 import com.voxel.game.terrain.OverworldChunkFactory;
@@ -59,6 +61,17 @@ public final class GameScreen extends ScreenAdapter implements BlockInteraction 
     private BitmapFont font;
     private Texture crosshair;
     private final GlyphLayout layout = new GlyphLayout();
+    /** Do mo cua man hinh "dang tao the gioi": 1 = che kin, giam dan ve 0 khi the gioi xong. */
+    private float loadingAlpha = 1f;
+
+    /**
+     * Bang go loi F3 chi tinh lai chu {@link #DEBUG_REFRESH} giay mot lan: dung chuoi
+     * String.format ~20 dong MOI KHUNG HINH chi de doc bang mat - do la rac GC vo ich.
+     */
+    private static final float DEBUG_REFRESH = 0.25f;
+    private String[] debugLeft = new String[0];
+    private String[] debugRight = new String[0];
+    private float debugTimer;
 
     public GameScreen(Session session) {
         this.session = session;
@@ -130,15 +143,90 @@ public final class GameScreen extends ScreenAdapter implements BlockInteraction 
         play = new PlaySession(engine, blocks, atlas, font);
         // Luon vao bang che do SINH TON, tui do trong - muon xay thoai mai thi go /gamemode 1.
         play.setMode(GameMode.SURVIVAL);
+        connectChat();
+        // Creeper no lam vo khoi: bao server tung o mot de nguoi choi khac cung thay ho bom.
+        play.setExplosionListener(new com.voxel.game.mob.MonsterManager.ExplosionListener() {
+            @Override
+            public void blockDestroyed(int x, int y, int z) {
+                worldClient.sendEdit(x, y, z, 0);
+            }
+        });
         // Giao dien duoc hoi truoc: khi tui do hay khung chat dang mo thi no giu lai
         // phim bam, khong cho lot xuong phan dieu khien nhan vat.
         Gdx.input.setInputProcessor(new InputMultiplexer(play, engine.controller()));
+    }
+
+    /**
+     * Noi khung chat voi mang: dong go thuong (khong co "/") duoc gui cho ca phong va in
+     * ngay len may minh kem ten; dong nguoi khac gui ve thi {@link #applyChatMessages} in ra.
+     * Them lenh /list de xem ai dang online cung phong.
+     */
+    private void connectChat() {
+        final CommandConsole console = play.console();
+        console.setChatListener(new CommandConsole.ChatListener() {
+            @Override
+            public void chat(String message) {
+                console.log("<" + session.username + "> " + message);
+                worldClient.sendChat(message);
+            }
+        });
+        console.register("list", new Command() {
+            @Override
+            public String run(String[] args) {
+                StringBuilder online = new StringBuilder("Online: ").append(session.username);
+                for (String name : worldClient.players().names()) {
+                    online.append(", ").append(name);
+                }
+                return online.toString();
+            }
+
+            @Override
+            public String usage() {
+                return "/list  - see who is online on this map";
+            }
+        });
+        console.register("tp", new Command() {
+            @Override
+            public String run(String[] args) {
+                // /tp <x> <y> <z> - jump to a coordinate.
+                if (args.length == 3) {
+                    try {
+                        float x = Float.parseFloat(args[0]);
+                        float y = Float.parseFloat(args[1]);
+                        float z = Float.parseFloat(args[2]);
+                        engine.teleportPlayer(x, y, z);
+                        return String.format("Teleported to %.0f %.0f %.0f", x, y, z);
+                    } catch (NumberFormatException bad) {
+                        return "Coordinates must be numbers: /tp <x> <y> <z>";
+                    }
+                }
+                // /tp <player> - jump to another online player.
+                if (args.length == 1) {
+                    for (com.voxel.game.net.RemotePlayer other : worldClient.players().all()) {
+                        if (other.name().equalsIgnoreCase(args[0])) {
+                            com.badlogic.gdx.math.Vector3 feet = other.feet();
+                            engine.teleportPlayer(feet.x, feet.y + 0.5f, feet.z);
+                            return "Teleported to " + other.name();
+                        }
+                    }
+                    return "No player named " + args[0] + " here - try /list";
+                }
+                return "Usage: /tp <x> <y> <z> or /tp <player>";
+            }
+
+            @Override
+            public String usage() {
+                return "/tp <x y z | player>  - teleport";
+            }
+        });
+        console.log("Press T to chat with friends, /list shows who is online.");
     }
 
     @Override
     public void render(float delta) {
         applyRemoteEdits();
         applyIncomingHits();
+        applyChatMessages();
         engine.render(delta);
         // Ve avatar nguoi choi khac SAU khi engine ve xong the gioi (dung chung camera va bo dem do sau).
         worldClient.players().advance(delta);
@@ -155,6 +243,14 @@ public final class GameScreen extends ScreenAdapter implements BlockInteraction 
         int[] edit;
         while ((edit = worldClient.pollRemoteEdit()) != null) {
             engine.world().applyRemoteEdit(edit[0], edit[1], edit[2], registry.byId((byte) edit[3]));
+        }
+    }
+
+    /** In cac dong chat / thong bao vao-ra vua nhan len khung chat (chay tren luong game). */
+    private void applyChatMessages() {
+        String line;
+        while ((line = worldClient.pollChat()) != null) {
+            play.console().log(line);
         }
     }
 
@@ -246,7 +342,57 @@ public final class GameScreen extends ScreenAdapter implements BlockInteraction 
         }
 
         play.draw(ui, width, height);
+        drawLoadingScreen(width, height);
         ui.end();
+    }
+
+    /**
+     * Man hinh "Dang tao the gioi" che len tren cung khi moi vao game: nen toi, thanh tien
+     * trinh va so PHAN TRAM chunk da dung xong. Khi nguoi choi duoc dat xuong dat thi mo dan
+     * roi bien mat - vao game muot chu khong bi "rot bup" giua troi.
+     */
+    private void drawLoadingScreen(int width, int height) {
+        if (engine.isReady()) {
+            loadingAlpha -= Gdx.graphics.getDeltaTime() / 0.6f;
+        }
+        if (loadingAlpha <= 0f) {
+            return;
+        }
+        float alpha = Math.min(1f, loadingAlpha);
+
+        // Tong so chunk trong tam nhin; dem duoc bao nhieu chunk da nap la ra phan tram.
+        int total = (2 * VIEW_DISTANCE + 1) * (2 * VIEW_DISTANCE + 1);
+        float progress = engine.isReady() ? 1f
+                : Math.min(1f, engine.loadedChunks() / (float) total);
+        int percent = (int) (progress * 100f);
+
+        ui.setColor(0.08f, 0.08f, 0.11f, alpha);
+        ui.draw(play.pixel(), 0f, 0f, width, height);
+
+        String title = "GENERATING WORLD...";
+        layout.setText(font, title);
+        font.setColor(1f, 1f, 1f, alpha);
+        font.draw(ui, title, (width - layout.width) * 0.5f, height * 0.5f + 46f);
+
+        float barWidth = Math.min(width * 0.45f, 520f);
+        float barHeight = 16f;
+        float barX = (width - barWidth) * 0.5f;
+        float barY = height * 0.5f;
+
+        // Vien trang mong, ruot toi, phan da xong to mau xanh kinh nghiem.
+        ui.setColor(1f, 1f, 1f, alpha);
+        ui.draw(play.pixel(), barX - 2f, barY - 2f, barWidth + 4f, barHeight + 4f);
+        ui.setColor(0.05f, 0.05f, 0.07f, alpha);
+        ui.draw(play.pixel(), barX, barY, barWidth, barHeight);
+        ui.setColor(0.5f, 1f, 0.12f, alpha);
+        ui.draw(play.pixel(), barX, barY, barWidth * progress, barHeight);
+        ui.setColor(Color.WHITE);
+
+        String text = percent + "%";
+        layout.setText(font, text);
+        font.setColor(1f, 1f, 1f, alpha);
+        font.draw(ui, text, (width - layout.width) * 0.5f, barY - 12f);
+        font.setColor(Color.WHITE);
     }
 
     /**
@@ -254,6 +400,16 @@ public final class GameScreen extends ScreenAdapter implements BlockInteraction 
      * la thong tin may. Moi dong co nen den mo cho de doc tren nen sang.
      */
     private void drawDebugText(int width, int height) {
+        debugTimer -= Gdx.graphics.getDeltaTime();
+        if (debugTimer <= 0f || debugLeft.length == 0) {
+            debugTimer = DEBUG_REFRESH;
+            rebuildDebugText(width, height);
+        }
+        drawDebugColumn(debugLeft, 6f, height - 6f, false, width);
+        drawDebugColumn(debugRight, width - 6f, height - 6f, true, width);
+    }
+
+    private void rebuildDebugText(int width, int height) {
         Vector3 eye = camera.position;
         int blockX = (int) Math.floor(eye.x);
         int blockY = (int) Math.floor(eye.y);
@@ -266,17 +422,17 @@ public final class GameScreen extends ScreenAdapter implements BlockInteraction 
                 "Voxel Engine  " + Gdx.graphics.getFramesPerSecond() + " fps",
                 "chunks " + engine.visibleChunks() + "/" + engine.loadedChunks()
                         + "   sections " + engine.visibleSections()
-                        + "   cho ghep " + engine.pendingMeshUpdates(),
-                "tam giac " + engine.visibleTriangles(),
+                        + "   queued " + engine.pendingMeshUpdates(),
+                "triangles " + engine.visibleTriangles(),
                 "",
                 String.format("XYZ  %.3f / %.5f / %.3f", eye.x, eye.y, eye.z),
-                "Khoi  " + blockX + " " + blockY + " " + blockZ,
+                "Block  " + blockX + " " + blockY + " " + blockZ,
                 "Chunk  " + Math.floorDiv(blockX, 16) + " " + Math.floorDiv(blockZ, 16),
-                "Huong  " + facing() + String.format("  (%.1f / %.1f)", yaw(), pitch()),
+                "Facing  " + facing() + String.format("  (%.1f / %.1f)", yaw(), pitch()),
                 "Biome  " + biomes.pick(blockX, blockZ),
-                "Gio  " + engine.dayCycle().clockLabel()
-                        + (engine.dayCycle().isNight() ? "  (dem - coi chung zombie)" : "  (ngay)"),
-                "Trang thai  " + engine.movementLabel() + "   Goc nhin  " + engine.viewMode().label()
+                "Time  " + engine.dayCycle().clockLabel()
+                        + (engine.dayCycle().isNight() ? "  (night - beware of monsters)" : "  (day)"),
+                "State  " + engine.movementLabel() + "   View  " + engine.viewMode().label()
         };
         String[] right = {
                 "Java " + System.getProperty("java.version"),
@@ -284,13 +440,13 @@ public final class GameScreen extends ScreenAdapter implements BlockInteraction 
                 "Screen  " + width + "x" + height,
                 "Mode  " + play.mode().label(),
                 "",
-                "F3 press this      F5 change view",
+                "F3 toggle this      F5 change view",
                 "E open inventory    / open command",
-                "T chat    ESC show cursor",
+                "T chat    ESC settings",
         };
 
-        drawDebugColumn(left, 6f, height - 6f, false, width);
-        drawDebugColumn(right, width - 6f, height - 6f, true, width);
+        debugLeft = left;
+        debugRight = right;
     }
 
     private void drawDebugColumn(String[] lines, float x, float top, boolean alignRight, int width) {

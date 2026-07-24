@@ -21,6 +21,8 @@ public final class TerrainNoise {
     private final SimplexNoise riverField;
     private final SimplexNoise lakeField;
     private final SimplexNoise entranceField;
+    private final SimplexNoise spaghettiFieldA;
+    private final SimplexNoise spaghettiFieldB;
 
     private final long seed;
     private final int seaLevel;
@@ -40,6 +42,8 @@ public final class TerrainNoise {
         this.riverField = new SimplexNoise(seed * 29L + 122949823L);
         this.lakeField = new SimplexNoise(seed * 37L + 217645199L);
         this.entranceField = new SimplexNoise(seed * 41L + 512927377L);
+        this.spaghettiFieldA = new SimplexNoise(seed * 43L + 715225739L);
+        this.spaghettiFieldB = new SimplexNoise(seed * 47L + 982451653L);
     }
 
     /** Continent: negative is ocean, positive is land. */
@@ -107,6 +111,20 @@ public final class TerrainNoise {
      */
     public double entrance(int x, int z) {
         return entranceField.fractal2d(x, z, 2, 0.012, 2.0, 0.5);
+    }
+
+    /**
+     * "Spaghetti" caves, the modern Minecraft (1.18+) way: each of the two 3D fields is
+     * zero along a smooth 2D SURFACE inside the world; the INTERSECTION of both zero
+     * surfaces is a long thin winding CURVE. Carving where both |a| and |b| are small
+     * therefore hollows out endless narrow tunnels that twist naturally in 3D.
+     */
+    public double spaghettiA(int x, int y, int z) {
+        return spaghettiFieldA.noise(x * 0.014, y * 0.020, z * 0.014);
+    }
+
+    public double spaghettiB(int x, int y, int z) {
+        return spaghettiFieldB.noise(x * 0.014, y * 0.020, z * 0.014);
     }
 
     /** Noise that controls the crawling direction of a perlin worm. */

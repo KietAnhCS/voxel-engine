@@ -19,6 +19,14 @@ import java.util.Map;
  */
 public final class CommandConsole {
 
+    /**
+     * Noi nhan nhung dong chat THUONG (khong bat dau bang "/"). Trong che do choi chung
+     * day la duong gui tin len server cho ban be cung phong doc duoc.
+     */
+    public interface ChatListener {
+        void chat(String message);
+    }
+
     /** Maximum number of chat lines shown at once. */
     private static final int MAX_LINES = 8;
     /** How long (seconds) a chat line lives before it fades out. */
@@ -44,7 +52,13 @@ public final class CommandConsole {
     private final List<Line> lines = new ArrayList<Line>();
     private final StringBuilder input = new StringBuilder();
 
+    private ChatListener chatListener;
     private boolean open;
+
+    /** Cam duong day chat: dong nao khong phai lenh se duoc dua cho {@code listener}. */
+    public void setChatListener(ChatListener listener) {
+        this.chatListener = listener;
+    }
 
     public void register(String name, Command command) {
         commands.put(name, command);
@@ -98,7 +112,12 @@ public final class CommandConsole {
             return;
         }
         if (!text.startsWith("/")) {
-            log(text);
+            // Khong co dau "/" -> la CHAT: gui cho ban be online (neu co), khong phai lenh.
+            if (chatListener != null) {
+                chatListener.chat(text);
+            } else {
+                log(text);
+            }
             return;
         }
 

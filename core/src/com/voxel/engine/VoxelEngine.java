@@ -72,6 +72,8 @@ public final class VoxelEngine implements Disposable {
     /** Dong ho ngay dem: quyet dinh do sang, mau troi va cho dung cua mat troi. */
     private final DayNightCycle dayCycle = new DayNightCycle();
     private final SkyRenderer sky = new SkyRenderer();
+    /** Thoi tiet: mua hay tanh - keo theo suong mu, do sang va man mua. */
+    private final com.voxel.engine.render.WeatherSystem weather = new com.voxel.engine.render.WeatherSystem();
     private final Vector3 orbit = new Vector3();
     private final Vector3 feet = new Vector3();
     /** Vi tri ban chan khung hinh truoc - de biet nguoi choi vua di duoc bao xa. */
@@ -156,6 +158,7 @@ public final class VoxelEngine implements Disposable {
     public void render(float delta) {
         elapsed += delta;
         dayCycle.advance(delta);
+        weather.update(delta);
         controller.applyMouseLook();
         controller.poll();
 
@@ -259,6 +262,8 @@ public final class VoxelEngine implements Disposable {
     }
 
     private void updateCamera(float delta) {
+        // FOV doc song tu Settings: keo thanh truot la ong kinh zoom ngay sau tam bang.
+        camera.fieldOfView = com.voxel.engine.GameSettings.get().fieldOfView();
         Vector3 position = player.position();
         float bob = controller.input().isMoving() && player.onGround()
                 ? HEAD_BOB_AMPLITUDE * MathUtils.sin(bobPhase)
@@ -382,8 +387,9 @@ public final class VoxelEngine implements Disposable {
     }
 
     private void drawWorld() {
-        // Mau nen VA mau suong mu deu lay tu dong ho ngay dem: sang xanh, chieu cam, dem tham.
-        skyColor.set(dayCycle.skyColor());
+        // Mau nen VA mau suong mu deu lay tu dong ho ngay dem: sang xanh, chieu cam, dem
+        // tham - troi mua thi pha them xam ({@link WeatherSystem#blendSky}).
+        skyColor.set(weather.blendSky(dayCycle.skyColor()));
         Color background = submerged ? waterColor : skyColor;
         fogAttribute.color.set(background);
 
@@ -396,13 +402,15 @@ public final class VoxelEngine implements Disposable {
         // Mat troi / mat trang / may ve TRUOC TIEN nhu tam phong nen: moi khoi dat da ve sau
         // deu che len tren, nen mat troi luon nam sau nui chu khong de len khoi nao.
         if (!submerged) {
-            sky.render(camera, dayCycle, elapsed);
+            sky.render(camera, dayCycle, elapsed, weather.rain());
         }
 
         shaderProgram.bind();
-        shaderProgram.setUniformf("u_fogstr", submerged ? 0.11f : 0.028f);
+        // Suong mu: duoi nuoc dac nhat; troi mua thi day dan len theo con mua.
+        float fog = submerged ? 0.11f : 0.028f * weather.fogFactor();
+        shaderProgram.setUniformf("u_fogstr", fog);
         shaderProgram.setUniformf("u_time", elapsed);
-        shaderProgram.setUniformf("u_daylight", dayCycle.daylight());
+        shaderProgram.setUniformf("u_daylight", dayCycle.daylight() * weather.daylightFactor());
 
         batch.begin(camera);
         batch.render(renderer.solidPass(), environment);
@@ -417,6 +425,11 @@ public final class VoxelEngine implements Disposable {
         batch.render(renderer.translucentPass(), environment);
         batch.end();
         Gdx.gl.glDepthMask(true);
+
+        // Man mua ve sau cung: giot mua khuat sau doi nui nho bo dem do sau cua the gioi.
+        if (!submerged) {
+            sky.renderRain(camera, elapsed, weather.rain());
+        }
     }
 
     private ShaderProgram compileShader() {
@@ -474,6 +487,11 @@ public final class VoxelEngine implements Disposable {
         return submerged;
     }
 
+    /** True khi nguoi choi da duoc dat xuong dat - luc do man hinh "dang tao the gioi" tat di. */
+    public boolean isReady() {
+        return spawnSettled;
+    }
+
     public PlayerController controller() {
         return controller;
     }
@@ -481,6 +499,18 @@ public final class VoxelEngine implements Disposable {
     /** Dong ho ngay dem - phan luat choi hoi de biet dem chua (quai vat) va de hien gio. */
     public DayNightCycle dayCycle() {
         return dayCycle;
+    }
+
+    /** Thoi tiet hien tai - lenh /weather doi qua day. */
+    public com.voxel.engine.render.WeatherSystem weather() {
+        return weather;
+    }
+
+    /** Dich chuyen tuc thoi toi mot vi tri (toa do BAN CHAN) - dung cho lenh /tp. */
+    public void teleportPlayer(float x, float feetY, float z) {
+        eye.set(x, feetY + PLAYER_HALF_HEIGHT + 0.1f, z);
+        player.teleport(eye);
+        player.clearVelocity();
     }
 
     /** Do sang bau troi tai o khoi nay: dung de biet cho do co du toi cho quai vat sinh ra khong. */

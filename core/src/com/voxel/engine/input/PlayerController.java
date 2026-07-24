@@ -12,7 +12,6 @@ import java.util.Deque;
 
 public final class PlayerController extends InputAdapter {
 
-    private static final float DEGREES_PER_PIXEL = 0.22f;
     private static final float MAX_PITCH = 89f;
     private static final long DOUBLE_TAP_WINDOW_MS = 260L;
 
@@ -107,8 +106,10 @@ public final class PlayerController extends InputAdapter {
             return;
         }
 
-        float yaw = -Gdx.input.getDeltaX() * DEGREES_PER_PIXEL;
-        float pitchDelta = -Gdx.input.getDeltaY() * DEGREES_PER_PIXEL;
+        // Do nhay doc song tu man Settings (ESC) - keo thanh truot la thay ngay.
+        float sensitivity = com.voxel.engine.GameSettings.get().mouseSensitivity();
+        float yaw = -Gdx.input.getDeltaX() * sensitivity;
+        float pitchDelta = -Gdx.input.getDeltaY() * sensitivity;
 
         camera.direction.rotate(Vector3.Y, yaw);
 
@@ -146,9 +147,7 @@ public final class PlayerController extends InputAdapter {
         if (keycode == Input.Keys.SPACE) {
             jumpHeld = false;
         }
-        if (keycode == Input.Keys.ESCAPE) {
-            Gdx.input.setCursorCatched(!Gdx.input.isCursorCatched());
-        }
+        // ESC gio thuoc ve man Settings (PlaySession bat truoc khi toi day).
         return true;
     }
 

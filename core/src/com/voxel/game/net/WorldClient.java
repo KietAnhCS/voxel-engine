@@ -31,6 +31,8 @@ public final class WorldClient implements HitSender {
     private final RemotePlayers players = new RemotePlayers(this);
     private final ConcurrentLinkedQueue<int[]> pendingEdits = new ConcurrentLinkedQueue<int[]>();
     private final ConcurrentLinkedQueue<Hurt> pendingHurts = new ConcurrentLinkedQueue<Hurt>();
+    /** Dong chat / thong bao vao-ra vua nhan, cho luong game lay ra in len khung chat. */
+    private final ConcurrentLinkedQueue<String> pendingChats = new ConcurrentLinkedQueue<String>();
 
     private volatile WebSocket socket;
     /** Cac lan gui noi tiep nhau: WebSocket cam goi sendText khi lan truoc chua xong. */
@@ -53,7 +55,7 @@ public final class WorldClient implements HitSender {
             sendChain = CompletableFuture.completedFuture(socket);
         } catch (Exception failed) {
             socket = null;
-            System.err.println("Khong ket noi duoc the gioi chung: " + failed.getMessage());
+            System.err.println("Could not join the shared world: " + failed.getMessage());
         }
     }
 
@@ -80,6 +82,16 @@ public final class WorldClient implements HitSender {
     /** Bao ca phong: minh vua quo tay danh mot cai (de avatar cua minh ben may ho vung tay theo). */
     public void sendSwing() {
         send("{\"t\":\"swing\"}");
+    }
+
+    /** Gui mot dong chat cho moi nguoi cung phong. */
+    public void sendChat(String message) {
+        send("{\"t\":\"chat\",\"msg\":\"" + escape(message) + "\"}");
+    }
+
+    /** Dong chat ke tiep can in len man hinh, null khi het. */
+    public String pollChat() {
+        return pendingChats.poll();
     }
 
     /** Cac o khoi nguoi khac vua sua, cho luong game lay ra ap vao the gioi. Tra ve null khi het. */
@@ -126,8 +138,14 @@ public final class WorldClient implements HitSender {
         JsonValue root = json.parse(message);
         String type = root.getString("t", "");
         if ("player".equals(type)) {
-            players.update(root.getString("name"),
+            String name = root.getString("name");
+            boolean joined = players.update(name,
                     root.getFloat("x"), root.getFloat("y"), root.getFloat("z"), root.getFloat("yaw"));
+            if (joined) {
+                pendingChats.add(name + " joined the world");
+            }
+        } else if ("chat".equals(type)) {
+            pendingChats.add("<" + root.getString("name", "?") + "> " + root.getString("msg", ""));
         } else if ("edit".equals(type)) {
             pendingEdits.add(new int[]{root.getInt("x"), root.getInt("y"), root.getInt("z"), root.getInt("b")});
             // Ai dat/pha khoi thi avatar cua ho quo tay mot cai cho song dong.
@@ -135,9 +153,11 @@ public final class WorldClient implements HitSender {
         } else if ("swing".equals(type)) {
             players.swing(root.getString("name", ""));
         } else if ("hurt".equals(type)) {
-            pendingHurts.add(new Hurt(root.getString("from", "Ai do"), root.getInt("dmg", 0)));
+            pendingHurts.add(new Hurt(root.getString("from", "Someone"), root.getInt("dmg", 0)));
         } else if ("leave".equals(type)) {
-            players.remove(root.getString("name"));
+            String name = root.getString("name");
+            players.remove(name);
+            pendingChats.add(name + " left the world");
         }
     }
 

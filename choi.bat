@@ -32,7 +32,7 @@ cd /d "%GOC%"
 
 :: ------------------------------------------------------------------
 echo.
-echo [1/3] Build game...
+echo [1/3] Building the game...
 echo ------------------------------------------------------------------
 set VIEC=:core:jar :desktop:classes :desktop:writeLaunchArgs
 if /i "%KIEU_BUILD%"=="sach" set VIEC=clean %VIEC%
@@ -44,12 +44,12 @@ if not exist "%THAMSO%" goto :loi_thamso
 
 :: ------------------------------------------------------------------
 echo.
-echo [2/3] Cap nhat va bat may chu...
+echo [2/3] Updating and starting the server...
 echo ------------------------------------------------------------------
 where docker >nul 2>nul
 if errorlevel 1 (
-    echo [Chu y] May nay chua co Docker nen khong bat duoc may chu.
-    echo         Khong co may chu thi khong dang nhap duoc.
+    echo [Note] Docker is not installed, so the server cannot start.
+    echo        Without the server you cannot log in.
     goto :mo_game
 )
 
@@ -57,43 +57,44 @@ if errorlevel 1 (
 :: nen chay lai rat nhanh. Container dang chay san thi no giu nguyen.
 docker compose up -d --build
 if errorlevel 1 (
-    echo [Chu y] Bat may chu that bai. Da mo Docker Desktop chua?
+    echo [Note] Starting the server failed. Is Docker Desktop running?
     goto :mo_game
 )
 
 :: Cho toi khi may chu chiu tra loi (toi da 60 giay) roi moi mo game,
 :: neu khong man hinh dang nhap se bao loi mang oan.
-echo Dang cho may chu san sang...
+echo Waiting for the server to come up...
 set /a DEM=0
 :cho_may_chu
 curl -s -o nul -m 2 http://localhost:8080/ >nul 2>nul
 if not errorlevel 1 goto :may_chu_ok
 set /a DEM+=1
 if !DEM! geq 30 (
-    echo [Chu y] May chu chua tra loi sau 60 giay - cu mo game, dang nhap co the loi.
+    echo [Note] No answer after 60 seconds - opening the game anyway, login may fail.
     goto :mo_game
 )
 ping -n 3 127.0.0.1 >nul
 goto :cho_may_chu
 
 :may_chu_ok
-echo May chu san sang.
+echo Server is ready.
 
 :: ------------------------------------------------------------------
 :mo_game
 echo.
-echo [3/3] Mo %SO_CUA_SO% cua so game...
+echo [3/3] Opening %SO_CUA_SO% game window(s)...
 echo ------------------------------------------------------------------
-echo Dang nhap %SO_CUA_SO% tai khoan KHAC nhau, cung mot Ma map (vi du 123).
-echo Vao game la che do SINH TON, tui do trong.
+echo Log in with %SO_CUA_SO% DIFFERENT accounts using the same Map code (e.g. 123).
+echo The game starts in SURVIVAL mode with an empty inventory.
 echo.
-echo   Chuot trai       dao khoi / danh zombie va nguoi choi khac
-echo   Chuot phai       dat khoi (giu 1.2 giay de AN qua tao)
-echo   E                tui do: shift+bam chuyen nhanh, keo chuot chia deu,
-echo                    bam dup gom khoi cung loai
-echo   Phim cach        nhay, o duoi nuoc thi boi len
-echo   F5 / F3          doi goc nhin / bang thong tin
-echo   /time night      nhay toi ban dem cho zombie ra
+echo   Left click       mine blocks / fight zombies and other players
+echo   Right click      place a block (hold 1.2s to EAT an apple)
+echo   E                inventory: shift+click quick-moves, drag to split,
+echo                    double-click gathers a stack
+echo   Space            jump; hold it under water to swim up
+echo   T  /  ESC        chat  /  settings
+echo   F5 / F3          change view / debug panel
+echo   /weather rain    let it rain    -    /time night brings the monsters
 echo.
 
 rem Cho mot chut giua hai cua so. Dung "ping" thay cho "timeout" vi timeout bao loi khi bat
@@ -104,22 +105,22 @@ for /l %%i in (1,1,%SO_CUA_SO%) do (
     ping -n 3 127.0.0.1 >nul
 )
 
-echo Da mo xong. Dong cua so nay luc nao cung duoc.
+echo Done. You can close this window at any time.
 endlocal
 exit /b 0
 
 :loi_build
 echo.
-echo [Loi] Build game that bai - xem loi code o tren.
-echo       Neu nghi build cu bi hong thi chay:  choi.bat 2 sach
+echo [Error] Building the game failed - see the compiler output above.
+echo         If the old build looks broken, run:  choi.bat 2 sach
 pause
 endlocal
 exit /b 1
 
 :loi_thamso
 echo.
-echo [Loi] Khong thay "%THAMSO%".
-echo       Task :desktop:writeLaunchArgs chua chay duoc.
+echo [Error] Cannot find "%THAMSO%".
+echo         The :desktop:writeLaunchArgs task did not run.
 pause
 endlocal
 exit /b 1

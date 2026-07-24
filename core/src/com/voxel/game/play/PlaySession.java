@@ -54,6 +54,7 @@ public final class PlaySession extends InputAdapter implements Disposable, Playe
     private final Crafting crafting;
     private final ItemRenderer items;
     private final InventoryScreen inventoryScreen;
+    private final SettingsScreen settingsScreen;
     private final Hud hud;
     /** He quai vat (chi hoat dong o sinh ton). PlaySession dong vai "nguoi choi" cho no danh. */
     private final MonsterManager monsters;
@@ -80,13 +81,21 @@ public final class PlaySession extends InputAdapter implements Disposable, Playe
         this.crafting = new Crafting(blocks);
         this.items = new ItemRenderer(atlas, ui, font);
         this.inventoryScreen = new InventoryScreen(inventory, crafting, blocks.palette(), items, font);
+        this.settingsScreen = new SettingsScreen(ui, font);
         this.hud = new Hud(inventory, stats, console, items, font);
-        this.monsters = new MonsterManager(engine.world(), this);
+        this.monsters = new MonsterManager(engine.world(), blocks, this);
 
         registerCommands();
         // Vao game la SINH TON, tui do trong tron - tu di dao lay khoi ma xay.
         setMode(GameMode.SURVIVAL);
-        console.log("Go /help de xem cac lenh. Bam E de mo tui do.");
+
+        // Moc thu giao dien: dat VOXEL_UI_TEST=inventory de tui do tu mo ngay khi vao game
+        // (dung de chup anh kiem tra giao dien tu dong, nguoi choi thuong khong dat bien nay).
+        if ("inventory".equals(System.getenv("VOXEL_UI_TEST"))) {
+            inventoryScreen.open();
+            captureControls();
+        }
+        console.log("Type /help for commands. Press E to open your inventory.");
     }
 
     // ------------------------------------------------------------------ lenh
@@ -96,19 +105,19 @@ public final class PlaySession extends InputAdapter implements Disposable, Playe
             @Override
             public String run(String[] args) {
                 if (args.length == 0) {
-                    return "Dang o che do " + mode.label() + " (" + mode.id() + ")";
+                    return "Current mode: " + mode.label() + " (" + mode.id() + ")";
                 }
                 GameMode target = GameMode.parse(args[0]);
                 if (target == null) {
-                    return "Che do khong hop le: " + args[0] + " (dung 0 hoac 1)";
+                    return "Unknown mode: " + args[0] + " (use 0 or 1)";
                 }
                 setMode(target);
-                return "Da chuyen sang che do " + target.label();
+                return "Switched to " + target.label() + " mode";
             }
 
             @Override
             public String usage() {
-                return "/gamemode <0|1>  - 0 sinh ton, 1 sang tao";
+                return "/gamemode <0|1>  - 0 survival, 1 creative";
             }
         };
         console.register("gamemode", gamemode);
@@ -118,7 +127,7 @@ public final class PlaySession extends InputAdapter implements Disposable, Playe
             @Override
             public String run(String[] args) {
                 if (args.length == 0) {
-                    return "Bay gio la " + engine.dayCycle().clockLabel();
+                    return "The time is " + engine.dayCycle().clockLabel();
                 }
                 String when = args[0].toLowerCase();
                 if (when.equals("day") || when.equals("ngay")) {
@@ -130,14 +139,38 @@ public final class PlaySession extends InputAdapter implements Disposable, Playe
                 } else if (when.equals("dusk") || when.equals("hoanghon")) {
                     engine.dayCycle().setTime(0.5f);
                 } else {
-                    return "Dung: /time day|night|dawn|dusk";
+                    return "Usage: /time day|night|dawn|dusk";
                 }
-                return "Da doi gio thanh " + engine.dayCycle().clockLabel();
+                return "Time set to " + engine.dayCycle().clockLabel();
             }
 
             @Override
             public String usage() {
-                return "/time <day|night|dawn|dusk>  - doi gio trong ngay";
+                return "/time <day|night|dawn|dusk>  - change the time of day";
+            }
+        });
+
+        console.register("weather", new Command() {
+            @Override
+            public String run(String[] args) {
+                if (args.length == 0) {
+                    return "Weather: " + (engine.weather().isRaining() ? "rain" : "clear");
+                }
+                String wanted = args[0].toLowerCase();
+                if (wanted.equals("rain")) {
+                    engine.weather().setRaining(true);
+                    return "Rain is coming...";
+                }
+                if (wanted.equals("clear")) {
+                    engine.weather().setRaining(false);
+                    return "The sky is clearing up";
+                }
+                return "Usage: /weather rain|clear";
+            }
+
+            @Override
+            public String usage() {
+                return "/weather <rain|clear>  - change the weather";
             }
         });
 
@@ -145,12 +178,12 @@ public final class PlaySession extends InputAdapter implements Disposable, Playe
             @Override
             public String run(String[] args) {
                 stats.heal(PlayerStats.MAX_HEALTH);
-                return "Da hoi day mau";
+                return "Fully healed";
             }
 
             @Override
             public String usage() {
-                return "/heal  - hoi day mau";
+                return "/heal  - restore full health";
             }
         });
 
@@ -163,7 +196,7 @@ public final class PlaySession extends InputAdapter implements Disposable, Playe
 
             @Override
             public String usage() {
-                return "/kill  - tu ket lieu";
+                return "/kill  - end it all";
             }
         });
 
@@ -171,12 +204,12 @@ public final class PlaySession extends InputAdapter implements Disposable, Playe
             @Override
             public String run(String[] args) {
                 inventory.clear();
-                return "Da do sach tui do";
+                return "Inventory cleared";
             }
 
             @Override
             public String usage() {
-                return "/clear  - do sach tui do";
+                return "/clear  - empty your inventory";
             }
         });
 
@@ -194,7 +227,7 @@ public final class PlaySession extends InputAdapter implements Disposable, Playe
 
             @Override
             public String usage() {
-                return "/help  - xem danh sach lenh";
+                return "/help  - list all commands";
             }
         });
     }
@@ -210,6 +243,16 @@ public final class PlaySession extends InputAdapter implements Disposable, Playe
 
     public GameMode mode() {
         return mode;
+    }
+
+    /** Khung chat / lenh - de ben ngoai noi chat mang va dang ky them lenh (vd /list). */
+    public CommandConsole console() {
+        return console;
+    }
+
+    /** Cho GameScreen dang ky duong bao "khoi vua bi no pha" de dong bo len server. */
+    public void setExplosionListener(MonsterManager.ExplosionListener listener) {
+        monsters.setExplosionListener(listener);
     }
 
     /** Mot diem anh trang de ben ngoai ve nen chu. */
@@ -242,7 +285,7 @@ public final class PlaySession extends InputAdapter implements Disposable, Playe
         int killed = monsters.takeKills();
         for (int i = 0; i < killed; i++) {
             stats.addExperience(KILL_EXPERIENCE);
-            console.log("Da ha mot Zombie!");
+            console.log("Monster slain! +" + KILL_EXPERIENCE + " XP");
         }
 
         // Chet thi cung do nhu dang mo giao dien: khong di chuyen, hien con tro chuot.
@@ -296,7 +339,7 @@ public final class PlaySession extends InputAdapter implements Disposable, Playe
             return;
         }
         stats.damage(damage);
-        console.log(attacker + " danh ban " + damage + " mau!");
+        console.log(attacker + " hit you for " + damage + " damage!");
     }
 
     // -------------------------------------------------- PlayerTarget (goc nhin cua quai vat)
@@ -326,6 +369,7 @@ public final class PlaySession extends InputAdapter implements Disposable, Playe
         hud.draw(batch, width, height, mode, inventoryScreen.isOpen());
         inventoryScreen.draw(batch, width, height, mode);
         inventoryScreen.drawCarried(batch, Gdx.input.getX(), height - Gdx.input.getY());
+        settingsScreen.draw(batch, width, height, Gdx.input.getX(), height - Gdx.input.getY());
     }
 
     /** Con tro ngam chi hien khi khong co giao dien nao che man hinh. */
@@ -352,7 +396,7 @@ public final class PlaySession extends InputAdapter implements Disposable, Playe
             return;
         }
         if (!inventory.add(drop)) {
-            console.log("Tui do da day!");
+            console.log("Inventory is full!");
         }
         stats.addExperience(1);
     }
@@ -390,7 +434,7 @@ public final class PlaySession extends InputAdapter implements Disposable, Playe
         eatTimer = 0f;
         stats.eat(blocks.foodValue(held));
         inventory.consumeSelected();
-        console.log("Da an mot qua " + held.name());
+        console.log("Ate one " + held.name());
     }
 
     /**
@@ -433,7 +477,7 @@ public final class PlaySession extends InputAdapter implements Disposable, Playe
     }
 
     private boolean uiOpen() {
-        return console.isOpen() || inventoryScreen.isOpen();
+        return console.isOpen() || inventoryScreen.isOpen() || settingsScreen.isOpen();
     }
 
     @Override
@@ -466,7 +510,19 @@ public final class PlaySession extends InputAdapter implements Disposable, Playe
             return true;
         }
 
+        if (settingsScreen.isOpen()) {
+            if (keycode == Input.Keys.ESCAPE) {
+                settingsScreen.close();
+                resumeControls();
+            }
+            return true;
+        }
+
         switch (keycode) {
+            case Input.Keys.ESCAPE:
+                settingsScreen.open();
+                captureControls();
+                return true;
             case Input.Keys.E:
                 inventoryScreen.open();
                 captureControls();
@@ -527,6 +583,13 @@ public final class PlaySession extends InputAdapter implements Disposable, Playe
             }
             return true;
         }
+        if (settingsScreen.isOpen()) {
+            if (settingsScreen.touchDown(screenX, Gdx.graphics.getHeight() - screenY)) {
+                settingsScreen.close();
+                resumeControls();
+            }
+            return true;
+        }
         if (inventoryScreen.isOpen()) {
             int height = Gdx.graphics.getHeight();
             boolean shift = Gdx.input.isKeyPressed(Input.Keys.SHIFT_LEFT)
@@ -538,9 +601,13 @@ public final class PlaySession extends InputAdapter implements Disposable, Playe
         return console.isOpen();
     }
 
-    /** Keo chuot trong tui do: ghi lai cac o di qua de chia deu chong do. */
+    /** Keo chuot: truot thanh chinh trong settings, hoac chia deu chong do trong tui. */
     @Override
     public boolean touchDragged(int screenX, int screenY, int pointer) {
+        if (settingsScreen.isOpen()) {
+            settingsScreen.touchDragged(screenX);
+            return true;
+        }
         if (!inventoryScreen.isOpen()) {
             return uiOpen() || stats.isDead();
         }
@@ -551,6 +618,10 @@ public final class PlaySession extends InputAdapter implements Disposable, Playe
 
     @Override
     public boolean touchUp(int screenX, int screenY, int pointer, int button) {
+        if (settingsScreen.isOpen()) {
+            settingsScreen.touchUp();
+            return true;
+        }
         if (!inventoryScreen.isOpen()) {
             return uiOpen() || stats.isDead();
         }
@@ -572,7 +643,7 @@ public final class PlaySession extends InputAdapter implements Disposable, Playe
         engine.respawnPlayer();
         engine.controller().setEnabled(true);
         Gdx.input.setCursorCatched(true);
-        console.log("Da hoi sinh tai diem xuat phat");
+        console.log("Respawned at the spawn point");
     }
 
     @Override

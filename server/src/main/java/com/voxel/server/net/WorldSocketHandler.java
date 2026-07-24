@@ -26,9 +26,11 @@ import java.util.concurrent.ConcurrentHashMap;
  *                    {"t":"edit", x,y,z,b}            ->  luu vao the gioi chung + phat lai
  *                    {"t":"hit",  name, dmg}          ->  danh trung ai do: bao RIENG nguoi do
  *                    {"t":"swing"}                    ->  vua quo tay: phat lai cho nguoi khac
+ *                    {"t":"chat", msg}                ->  chat: phat lai cho nguoi khac kem ten
  *   - Gui toi game:  {"t":"player", name, x,y,z,yaw,pitch}  ->  ai do di chuyen
  *                    {"t":"edit",   name, x,y,z,b}           ->  ai do dat/pha khoi
  *                    {"t":"swing",  name}                    ->  ai do quo tay
+ *                    {"t":"chat",   name, msg}               ->  ai do vua chat
  *                    {"t":"hurt",   from, dmg}               ->  MINH vua bi danh mat mau
  *                    {"t":"leave",  name}                    ->  ai do thoat
  *
@@ -93,6 +95,15 @@ public class WorldSocketHandler extends TextWebSocketHandler {
                     write(Map.of("t", "hurt", "from", me.username, "dmg", damage)));
         } else if ("swing".equals(type)) {
             broadcast(session, write(Map.of("t", "swing", "name", me.username)));
+        } else if ("chat".equals(type)) {
+            // Chat: cat bot cho khoi spam roi phat cho ca phong (nguoi gui tu in dong cua minh).
+            String msg = node.path("msg").asText().trim();
+            if (!msg.isEmpty()) {
+                if (msg.length() > 100) {
+                    msg = msg.substring(0, 100);
+                }
+                broadcast(session, write(Map.of("t", "chat", "name", me.username, "msg", msg)));
+            }
         }
     }
 

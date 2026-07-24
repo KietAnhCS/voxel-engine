@@ -28,7 +28,7 @@ public class AuthService {
     public AuthResult register(Credentials request) {
         String username = request.username().trim();
         if (users.existsByUsername(username)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Ten dang nhap da ton tai");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "That username is already taken");
         }
         String hash = passwordEncoder.encode(request.password());
         User saved = users.save(new User(username, hash));
@@ -40,7 +40,7 @@ public class AuthService {
         User user = users.findByUsername(request.username().trim())
                 .filter(candidate -> passwordEncoder.matches(request.password(), candidate.getPasswordHash()))
                 .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.UNAUTHORIZED, "Sai ten dang nhap hoac mat khau"));
+                        HttpStatus.UNAUTHORIZED, "Wrong username or password"));
         return new AuthResult(jwt.issueToken(user), user.getUsername());
     }
 }

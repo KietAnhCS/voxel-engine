@@ -101,7 +101,7 @@ public final class BackendClient {
                     HttpResponse.BodyHandlers.ofString());
         } catch (Exception failure) {
             throw new BackendException(
-                    "Khong ket noi duoc may chu (" + baseUrl + ").\nDa chay 'docker compose up' chua?");
+                    "Could not reach the server (" + baseUrl + ").\nDid you run 'docker compose up'?");
         }
     }
 
@@ -116,7 +116,7 @@ public final class BackendClient {
         } catch (Exception ignore) {
             // than khong phai JSON - roi xuong thong bao chung.
         }
-        return "Loi tu may chu (ma " + response.statusCode() + ")";
+        return "Server error (code " + response.statusCode() + ")";
     }
 
     /** Ma hoa gia tri cho chuoi truy van URL (vd ma the gioi co dau cach). */

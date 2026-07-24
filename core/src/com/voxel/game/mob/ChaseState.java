@@ -32,7 +32,8 @@ public final class ChaseState implements MonsterState {
             return new IdleState();
         }
         if (distance <= MonsterContext.ATTACK_RANGE) {
-            return new AttackState();
+            // Zombies swing their arms; creepers light the fuse instead.
+            return monster.kind() == Monster.Kind.CREEPER ? new FuseState() : new AttackState();
         }
 
         // Dinh ky tinh lai duong bang A* vi nguoi choi luon chay.

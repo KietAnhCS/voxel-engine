@@ -22,26 +22,17 @@ import java.util.Random;
  * o xa theo huong ma {@link DayNightCycle} chi ra - nen chung moc dang dong, lan dang tay
  * theo dung chu ky ngay dem. Cai nao khuat duoi duong chan troi thi mo dan roi tat han.
  *
- * <p>May la mot tam luoi phang o cao {@link #CLOUD_Y}, luon dat quanh nguoi choi nhung
- * TOA DO ANH duoc tinh tu vi tri THAT trong the gioi, nen may dung yen tai cho khi nguoi
- * choi di lai (co cam giac troi that) chu khong dinh theo dau nguoi. Ria tam luoi mo dan
- * ve 0 de khong lo ra mot canh thang tap giua troi.
+ * <p>May la nhung KHOI HOP 3D that ({@link CloudLayer}) neo theo toa do the gioi va troi
+ * cham ve huong dong - bay len ngang may la thay ca mat tren lan mat duoi, dung nhu
+ * Minecraft. Troi MUA thi may day va xam lai, mat troi mat trang mo dan roi khuat han.
  *
  * <p>Tat ca ve bang mot shader nho tu viet: chi co vi tri, anh va mau - khong dinh gi toi
- * anh sang hay suong mu cua the gioi khoi.
+ * anh sang hay suong mu cua the gioi khoi. Mua ({@link RainRenderer}) cung muon shader nay.
  */
 public final class SkyRenderer implements Disposable {
 
-    /** Do cao lop may (the gioi cao 128 nen may nam ngay tren dinh nui). */
-    private static final float CLOUD_Y = 122f;
-    /** Be rong tam may (khoi). */
-    private static final float CLOUD_SPAN = 320f;
-    /** So o chia moi chieu cua tam may - can du day de ria mo dan cho muot. */
-    private static final int CLOUD_CELLS = 16;
-    /** Bao nhieu khoi thi anh may lap lai mot lan. */
+    /** Bao nhieu khoi thi anh may lap lai mot lan (van dung cho toa do cuon cua shader). */
     private static final float CLOUD_TILE = 48f;
-    /** May troi bao nhieu khoi moi giay. */
-    private static final float CLOUD_SPEED = 0.6f;
 
     /**
      * Mat troi/mat trang dat cach nguoi choi bao nhieu phan tam nhin. De sat mep tam nhin
@@ -56,10 +47,11 @@ public final class SkyRenderer implements Disposable {
 
     private final ShaderProgram shader;
     private final Mesh billboard;
-    private final Mesh clouds;
+    private final CloudLayer cloudLayer = new CloudLayer();
+    private final RainRenderer rain = new RainRenderer();
     private final Texture sunTexture;
     private final Texture moonTexture;
-    private final Texture cloudTexture;
+    private final Texture whiteTexture;
 
     private final float[] quadVertices = new float[4 * FLOATS_PER_VERTEX];
     private final Vector3 centre = new Vector3();
@@ -73,9 +65,8 @@ public final class SkyRenderer implements Disposable {
         // Mat troi va mat trang la o VUONG dac nhu Minecraft, khong phai dia tron.
         sunTexture = square(16, new Color(1f, 1f, 0.92f, 1f), new Color(1f, 0.86f, 0.35f, 1f));
         moonTexture = square(16, new Color(1f, 1f, 1f, 1f), new Color(0.82f, 0.86f, 0.96f, 1f));
-        cloudTexture = cloudPuffs(64);
+        whiteTexture = whitePixel();
         billboard = buildBillboard();
-        clouds = buildClouds();
     }
 
     /**
@@ -85,7 +76,7 @@ public final class SkyRenderer implements Disposable {
      * cung xa. Nho vay moi khoi dat da ve sau deu che len tren - mat troi luon nam SAU nui
      * chu khong bao gio de len khoi hay lo lung truoc mat nguoi choi.
      */
-    public void render(PerspectiveCamera camera, DayNightCycle cycle, float elapsed) {
+    public void render(PerspectiveCamera camera, DayNightCycle cycle, float elapsed, float rainAmount) {
         Gdx.gl.glEnable(GL20.GL_BLEND);
         Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
         Gdx.gl.glDisable(GL20.GL_CULL_FACE);
@@ -100,17 +91,34 @@ public final class SkyRenderer implements Disposable {
         moonDirection.set(sun).scl(-1f);
         float distance = camera.far * SKY_DISTANCE_RATIO;
 
-        // Cai nao dang o duoi chan troi thi mo dan roi tat.
+        // Cai nao dang o duoi chan troi thi mo dan roi tat; troi mua thi may che khuat luon.
+        float clearSky = 1f - rainAmount;
         drawBillboard(camera, sunTexture, sun, distance, distance * SUN_SIZE_RATIO,
-                horizonFade(sun.y), 1f, 1f, 1f);
+                horizonFade(sun.y) * clearSky, 1f, 1f, 1f);
         drawBillboard(camera, moonTexture, moonDirection, distance, distance * MOON_SIZE_RATIO,
-                horizonFade(moonDirection.y), 0.9f, 0.93f, 1f);
-        drawClouds(camera, cycle, elapsed);
+                horizonFade(moonDirection.y) * clearSky, 0.9f, 0.93f, 1f);
+        drawClouds(camera, cycle, elapsed, rainAmount);
 
         Gdx.gl.glDepthMask(true);
         Gdx.gl.glEnable(GL20.GL_DEPTH_TEST);
         Gdx.gl.glEnable(GL20.GL_CULL_FACE);
         Gdx.gl.glDisable(GL20.GL_BLEND);
+    }
+
+    /**
+     * Ve mua quanh nguoi choi. Goi SAU khi ve xong the gioi (can bo dem do sau de giot mua
+     * khuat sau doi nui), voi {@code strength} lay tu {@link WeatherSystem#rain()}.
+     */
+    public void renderRain(PerspectiveCamera camera, float elapsed, float strength) {
+        if (strength <= 0.01f) {
+            return;
+        }
+        shader.bind();
+        shader.setUniformMatrix("u_projViewTrans", camera.combined);
+        shader.setUniformi("u_texture", 0);
+        shader.setUniformf("u_tint", 1f, 1f, 1f, 1f);
+        whiteTexture.bind(0);
+        rain.render(shader, camera, elapsed, strength);
     }
 
     /** Sat duong chan troi thi mo di, khuat han thi bien mat. */
@@ -156,20 +164,19 @@ public final class SkyRenderer implements Disposable {
         quadVertices[at + 8] = alpha;
     }
 
-    /** Tam may: dat quanh nguoi choi, anh may neo theo toa do that nen may nhu dung yen. */
-    private void drawClouds(PerspectiveCamera camera, DayNightCycle cycle, float elapsed) {
-        // Ban dem may xam lai theo do sang bau troi, hoang hon thi an mau troi.
+    /** May khoi 3D: ban dem xam lai theo do sang bau troi, troi mua thi xam xit han. */
+    private void drawClouds(PerspectiveCamera camera, DayNightCycle cycle, float elapsed,
+                            float rainAmount) {
+        if (!com.voxel.engine.GameSettings.get().cloudsEnabled()) {
+            return;
+        }
         float light = 0.35f + 0.65f * cycle.daylight();
+        light *= 1f - 0.35f * rainAmount;
         tint.set(cycle.skyColor()).lerp(Color.WHITE, 0.75f);
 
-        // Tam may di theo nguoi choi tren mat phang ngang, nhung do cao la TUYET DOI trong
-        // the gioi - lay theo camera.y la may tut xuong lan vao mat dat.
-        shader.setUniformf("u_offset", camera.position.x, CLOUD_Y, camera.position.z);
-        shader.setUniformf("u_uvFromWorld", 1f);
-        shader.setUniformf("u_scroll", elapsed * CLOUD_SPEED / CLOUD_TILE, 0f);
-        shader.setUniformf("u_tint", tint.r * light, tint.g * light, tint.b * light, 0.75f);
-        cloudTexture.bind(0);
-        clouds.render(shader, GL20.GL_TRIANGLES);
+        shader.setUniformf("u_tint", tint.r * light, tint.g * light, tint.b * light, 1f);
+        whiteTexture.bind(0);
+        cloudLayer.render(shader, camera, elapsed, rainAmount);
         shader.setUniformf("u_tint", 1f, 1f, 1f, 1f);
     }
 
@@ -178,59 +185,6 @@ public final class SkyRenderer implements Disposable {
     private Mesh buildBillboard() {
         Mesh mesh = new Mesh(false, 4, 6, attributes());
         mesh.setIndices(new short[]{0, 1, 2, 2, 3, 0});
-        return mesh;
-    }
-
-    /**
-     * Tam luoi phang {@link #CLOUD_CELLS}x{@link #CLOUD_CELLS} o. Toa do dinh tinh quanh goc
-     * (0,0), con do mo cua tung dinh giam dan tu giua ra ria de khong thay canh tam luoi.
-     */
-    private Mesh buildClouds() {
-        int side = CLOUD_CELLS + 1;
-        float[] vertices = new float[side * side * FLOATS_PER_VERTEX];
-        short[] indices = new short[CLOUD_CELLS * CLOUD_CELLS * 6];
-        float step = CLOUD_SPAN / CLOUD_CELLS;
-        int at = 0;
-
-        for (int row = 0; row < side; row++) {
-            for (int column = 0; column < side; column++) {
-                float x = -CLOUD_SPAN * 0.5f + column * step;
-                float z = -CLOUD_SPAN * 0.5f + row * step;
-                float distance = (float) Math.sqrt(x * x + z * z) / (CLOUD_SPAN * 0.5f);
-                float alpha = Math.max(0f, 1f - distance * distance);
-
-                vertices[at] = x;
-                vertices[at + 1] = 0f;
-                vertices[at + 2] = z;
-                vertices[at + 3] = 0f;   // toa do anh se tinh lai trong shader tu vi tri that
-                vertices[at + 4] = 0f;
-                vertices[at + 5] = 1f;
-                vertices[at + 6] = 1f;
-                vertices[at + 7] = 1f;
-                vertices[at + 8] = alpha;
-                at += FLOATS_PER_VERTEX;
-            }
-        }
-
-        int index = 0;
-        for (int row = 0; row < CLOUD_CELLS; row++) {
-            for (int column = 0; column < CLOUD_CELLS; column++) {
-                short topLeft = (short) (row * side + column);
-                short topRight = (short) (topLeft + 1);
-                short bottomLeft = (short) (topLeft + side);
-                short bottomRight = (short) (bottomLeft + 1);
-                indices[index++] = topLeft;
-                indices[index++] = topRight;
-                indices[index++] = bottomRight;
-                indices[index++] = bottomRight;
-                indices[index++] = bottomLeft;
-                indices[index++] = topLeft;
-            }
-        }
-
-        Mesh mesh = new Mesh(true, vertices.length / FLOATS_PER_VERTEX, indices.length, attributes());
-        mesh.setVertices(vertices);
-        mesh.setIndices(indices);
         return mesh;
     }
 
@@ -269,30 +223,12 @@ public final class SkyRenderer implements Disposable {
         return toTexture(pixmap, Texture.TextureWrap.ClampToEdge, Texture.TextureFilter.Nearest);
     }
 
-    /**
-     * Anh may lap lai duoc: rai nhung mang chu nhat trang vuong vuc kieu Minecraft. Moi mang
-     * duoc ve them o ca chin vi tri lech mot o anh, nho vay noi hai bien anh khong thay duong.
-     */
-    private static Texture cloudPuffs(int size) {
-        Pixmap pixmap = new Pixmap(size, size, Pixmap.Format.RGBA8888);
-        pixmap.setBlending(Pixmap.Blending.None);
-        pixmap.setColor(0f, 0f, 0f, 0f);
-        pixmap.fill();
-
-        Random random = new Random(20260724L);
+    /** Mot diem anh TRANG dac - may khoi va giot mua nhan mau tu mau dinh, khong can anh. */
+    private static Texture whitePixel() {
+        Pixmap pixmap = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
         pixmap.setColor(1f, 1f, 1f, 1f);
-        for (int puff = 0; puff < 26; puff++) {
-            int x = random.nextInt(size);
-            int y = random.nextInt(size);
-            int width = 5 + random.nextInt(11);
-            int height = 4 + random.nextInt(8);
-            for (int wrapX = -1; wrapX <= 1; wrapX++) {
-                for (int wrapY = -1; wrapY <= 1; wrapY++) {
-                    pixmap.fillRectangle(x + wrapX * size, y + wrapY * size, width, height);
-                }
-            }
-        }
-        return toTexture(pixmap, Texture.TextureWrap.Repeat, Texture.TextureFilter.Linear);
+        pixmap.fill();
+        return toTexture(pixmap, Texture.TextureWrap.ClampToEdge, Texture.TextureFilter.Nearest);
     }
 
     private static Texture toTexture(Pixmap pixmap, Texture.TextureWrap wrap,
@@ -349,9 +285,10 @@ public final class SkyRenderer implements Disposable {
     public void dispose() {
         shader.dispose();
         billboard.dispose();
-        clouds.dispose();
+        cloudLayer.dispose();
+        rain.dispose();
         sunTexture.dispose();
         moonTexture.dispose();
-        cloudTexture.dispose();
+        whiteTexture.dispose();
     }
 }

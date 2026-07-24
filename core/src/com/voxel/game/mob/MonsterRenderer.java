@@ -29,19 +29,26 @@ public final class MonsterRenderer implements Disposable {
         draw(camera, monsters, true);
     }
 
-    /** Ve nhung con dang (hoac khong dang) nhap nhay do. Hai lan ve de doi mau anh sang. */
+    /** Goc gio tay ra truoc cua zombie (do) - tu the kinh dien. Creeper thi tha tay doc. */
+    private static final float ZOMBIE_ARMS = 85f;
+
+    /**
+     * Ve nhung con dang (hoac khong dang) nhap nhay do. Hai lan ve de doi mau anh sang:
+     * vua an don HOAC creeper dang chay ngoi thi do ruc len.
+     */
     private void draw(PerspectiveCamera camera, List<Monster> monsters, boolean hurt) {
         HumanoidFigure target = hurt ? hurtFigure : figure;
         boolean began = false;
         for (Monster monster : monsters) {
-            if (monster.isHurt() != hurt) {
+            if (monster.isFlashing() != hurt) {
                 continue;
             }
             if (!began) {
                 target.begin(camera);
                 began = true;
             }
-            target.pose(monster.position(), monster.yaw(), monster.walk());
+            float arms = monster.kind() == Monster.Kind.ZOMBIE ? ZOMBIE_ARMS : 0f;
+            target.pose(monster.position(), monster.yaw(), monster.walk(), arms);
             target.draw();
         }
         if (began) {

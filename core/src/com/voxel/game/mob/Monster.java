@@ -14,6 +14,9 @@ import com.voxel.game.combat.Attackable;
  */
 public final class Monster implements Attackable {
 
+    /** The two mob kinds. Creepers reuse the zombie skin for now, telling them apart by pose. */
+    public enum Kind { ZOMBIE, CREEPER }
+
     /** Mau toi da - bang zombie Minecraft (20 mau = 10 trai tim). */
     public static final int MAX_HEALTH = 20;
     /** Vet do nhap nhay bao nhieu giay sau moi cu an don. */
@@ -21,6 +24,7 @@ public final class Monster implements Attackable {
     /** Moi giay dung ngoai nang thi mat bay nhieu mau. */
     private static final int BURN_DAMAGE = 4;
 
+    private final Kind kind;
     private final Vector3 position = new Vector3();
     /** Nhip di: chan tay vung theo quang duong di duoc (dung chung voi nguoi choi). */
     private final WalkCycle walk = new WalkCycle();
@@ -29,10 +33,15 @@ public final class Monster implements Attackable {
     private int health = MAX_HEALTH;
     private float hurtTimer;
     private float burnTimer;
+    /** Creeper only: 0..1 fuse progress while hissing; the renderer flashes with this. */
+    private float fuse;
+    /** Creeper only: the fuse burnt down - MonsterManager turns this into an explosion. */
+    private boolean exploding;
 
     private MonsterState state = new IdleState();
 
-    public Monster(float x, float y, float z) {
+    public Monster(Kind kind, float x, float y, float z) {
+        this.kind = kind;
         position.set(x, y, z);
     }
 
@@ -124,7 +133,32 @@ public final class Monster implements Attackable {
 
     @Override
     public String displayName() {
-        return "Zombie";
+        return kind == Kind.CREEPER ? "Creeper" : "Zombie";
+    }
+
+    public Kind kind() {
+        return kind;
+    }
+
+    // ------------------------------------------------------------- creeper fuse
+
+    /** Creeper only: how far the fuse has burnt (0 = calm, 1 = boom). */
+    public float fuse() {
+        return fuse;
+    }
+
+    public void setFuse(float fuse) {
+        this.fuse = Math.max(0f, Math.min(1f, fuse));
+    }
+
+    /** Called by the fuse state when the countdown finishes. */
+    public void requestExplosion() {
+        exploding = true;
+    }
+
+    /** True when the manager should replace this creeper with an explosion. */
+    public boolean isExploding() {
+        return exploding;
     }
 
     public boolean isDead() {
@@ -134,6 +168,11 @@ public final class Monster implements Attackable {
     /** Dang nhap nhay do vi vua an don. */
     public boolean isHurt() {
         return hurtTimer > 0f;
+    }
+
+    /** Ve bang mau do luc nay khong: vua an don, hoac creeper dang xi ngoi (nhap nhay). */
+    public boolean isFlashing() {
+        return isHurt() || (fuse > 0f && ((int) (fuse * 8f) & 1) == 1);
     }
 
     public int health() {

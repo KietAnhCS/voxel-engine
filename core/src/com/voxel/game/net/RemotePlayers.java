@@ -19,14 +19,25 @@ public final class RemotePlayers {
         this.sender = sender;
     }
 
-    /** Cap nhat vi tri mot nguoi choi (tao moi neu lan dau thay ten nay). */
-    public void update(String name, float x, float y, float z, float yaw) {
+    /**
+     * Cap nhat vi tri mot nguoi choi (tao moi neu lan dau thay ten nay).
+     *
+     * @return true neu day la lan DAU thay nguoi nay - dung de bao "vua vao the gioi"
+     */
+    public boolean update(String name, float x, float y, float z, float yaw) {
         RemotePlayer player = byName.get(name);
-        if (player == null) {
+        boolean joined = player == null;
+        if (joined) {
             player = new RemotePlayer(name, sender);
             byName.put(name, player);
         }
         player.setTarget(x, y, z, yaw);
+        return joined;
+    }
+
+    /** Ten nhung nguoi choi khac dang online (dung cho lenh /list). */
+    public java.util.Set<String> names() {
+        return byName.keySet();
     }
 
     /** Nguoi nay vua pha khoi hoac vua danh ai do - cho avatar cua ho quo tay. */
