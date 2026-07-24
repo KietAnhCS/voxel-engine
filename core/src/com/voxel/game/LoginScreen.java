@@ -17,6 +17,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.TextField;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
+import com.badlogic.gdx.scenes.scene2d.utils.TiledDrawable;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.voxel.game.net.BackendClient;
 import com.voxel.game.net.Session;
@@ -37,6 +38,7 @@ public final class LoginScreen extends ScreenAdapter {
     private Stage stage;
     private BitmapFont font;
     private Texture pixel;
+    private Texture menuBg;
     private TextField usernameField;
     private TextField passwordField;
     private TextField codeField;
@@ -58,6 +60,7 @@ public final class LoginScreen extends ScreenAdapter {
         font = new BitmapFont();
         font.getData().setScale(1.4f);
         pixel = whitePixel();
+        addTiledBackground();
         Drawable dark = tint(0.16f, 0.17f, 0.20f, 1f);
 
         usernameField = textField("", dark);
@@ -244,6 +247,25 @@ public final class LoginScreen extends ScreenAdapter {
 
     // ----------------------------------------------------------- dung giao dien
 
+    /**
+     * Nen menu lat gach toi - hoc tu goi Better MC (Mandalas GUI Background). Them TRUOC form
+     * nen no nam duoi cung; lam toi lai (~30%) cho khop tong charcoal cua giao dien va de doc chu.
+     */
+    private void addTiledBackground() {
+        menuBg = new Texture(Gdx.files.internal("data/menu_bg.png"));
+        menuBg.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+        menuBg.setWrap(Texture.TextureWrap.Repeat, Texture.TextureWrap.Repeat);
+
+        TiledDrawable tiled = new TiledDrawable(new TextureRegion(menuBg))
+                .tint(new Color(0.30f, 0.29f, 0.34f, 1f));
+        tiled.setScale(3f);
+
+        Table background = new Table();
+        background.setFillParent(true);
+        background.setBackground(tiled);
+        stage.addActor(background);
+    }
+
     private Label.LabelStyle labelStyle() {
         return new Label.LabelStyle(font, new Color(0.8f, 0.8f, 0.85f, 1f));
     }
@@ -302,6 +324,9 @@ public final class LoginScreen extends ScreenAdapter {
         }
         if (pixel != null) {
             pixel.dispose();
+        }
+        if (menuBg != null) {
+            menuBg.dispose();
         }
     }
 }

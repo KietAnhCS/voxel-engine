@@ -3,13 +3,17 @@ package com.voxel.game.play;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.InputAdapter;
+import com.badlogic.gdx.graphics.PerspectiveCamera;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
+import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.utils.Disposable;
 import com.voxel.engine.VoxelEngine;
 import com.voxel.engine.block.Block;
 import com.voxel.game.Blocks;
+import com.voxel.game.mob.MonsterManager;
+import com.voxel.game.mob.PlayerTarget;
 
 import java.util.Map;
 
@@ -22,7 +26,7 @@ import java.util.Map;
  * InputMultiplexer nen khi tui do hay khung chat dang mo thi phim bam thuoc ve giao
  * dien, khong lot xuong dieu khien nhan vat nua.
  */
-public final class PlaySession extends InputAdapter implements Disposable {
+public final class PlaySession extends InputAdapter implements Disposable, PlayerTarget {
 
     private final VoxelEngine engine;
     private final Blocks blocks;
@@ -34,6 +38,8 @@ public final class PlaySession extends InputAdapter implements Disposable {
     private final ItemRenderer items;
     private final InventoryScreen inventoryScreen;
     private final Hud hud;
+    /** He quai vat (chi hoat dong o sinh ton). PlaySession dong vai "nguoi choi" cho no danh. */
+    private final MonsterManager monsters;
 
     private GameMode mode = GameMode.CREATIVE;
     private boolean debugVisible = true;
@@ -47,6 +53,7 @@ public final class PlaySession extends InputAdapter implements Disposable {
         this.items = new ItemRenderer(atlas, ui, font);
         this.inventoryScreen = new InventoryScreen(inventory, crafting, blocks.palette(), items, font);
         this.hud = new Hud(inventory, stats, console, items, font);
+        this.monsters = new MonsterManager(engine.world(), this);
 
         registerCommands();
         fillStarterHotbar();
@@ -178,10 +185,35 @@ public final class PlaySession extends InputAdapter implements Disposable {
                 engine.playerInWater(),
                 engine.isPlayerMoving());
 
+        // Quai vat: chi lung suc o sinh ton, tu duoi va danh nguoi choi (xem MonsterManager).
+        monsters.update(delta, mode.isSurvival());
+
         // Chet thi cung do nhu dang mo giao dien: khong di chuyen, hien con tro chuot.
         if (stats.isDead() && engine.controller().isEnabled()) {
             captureControls();
         }
+    }
+
+    /** Ve quai vat trong khong gian 3D - goi tu GameScreen sau khi engine ve xong the gioi. */
+    public void renderMonsters(PerspectiveCamera camera) {
+        monsters.render(camera);
+    }
+
+    // -------------------------------------------------- PlayerTarget (goc nhin cua quai vat)
+
+    @Override
+    public Vector3 position() {
+        return engine.playerPosition();
+    }
+
+    @Override
+    public void hit(int damage) {
+        stats.damage(damage);
+    }
+
+    @Override
+    public boolean isDead() {
+        return stats.isDead();
     }
 
     public void draw(SpriteBatch batch, int width, int height) {
@@ -368,6 +400,7 @@ public final class PlaySession extends InputAdapter implements Disposable {
 
     @Override
     public void dispose() {
+        monsters.dispose();
         ui.dispose();
     }
 }

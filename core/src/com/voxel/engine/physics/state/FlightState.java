@@ -12,6 +12,8 @@ public final class FlightState implements MovementState {
     @Override
     public void enter(PlayerBody body) {
         body.setGravity(0f);
+        // Xoa van toc con sot (vd tu cu nhay) de vao bay khong tu troi len mai.
+        body.clearVelocity();
     }
 
     @Override

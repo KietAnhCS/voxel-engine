@@ -1,31 +1,65 @@
 package com.voxel.game.play;
 
+import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.badlogic.gdx.graphics.g2d.TextureRegion;
+import com.badlogic.gdx.utils.Disposable;
 
 /**
  * The player seen from the front, drawn in the preview box of the bag.
  *
- * It is only a few rectangles stacked in the right Minecraft character proportions
- * (head 8x8, body 8x12, arms and legs 4x12 - 16 wide and 32 tall in total), sharing
- * the palette with the 3D player model in {@code PlayerModel} so both look the same.
+ * It shows the SAME 64x64 skin ({@code skinzom.png}) that wraps the 3D player, cut into the
+ * front faces of head, body, arms and legs and stacked in Minecraft character proportions
+ * (head 8x8, body 8x12, arms and legs 4x12 - 16 wide and 32 tall in total). The skin's
+ * overlay layer (hat, jacket, sleeves, trousers) is drawn on top so the preview matches
+ * the character in the world.
  */
-public final class Avatar {
+public final class Avatar implements Disposable {
 
     private static final float MODEL_WIDTH = 16f;
     private static final float MODEL_HEIGHT = 32f;
 
-    public static final Color SKIN = rgb(0xE8B98D);
-    public static final Color HAIR = rgb(0x3F2A17);
-    public static final Color SHIRT = rgb(0x00A8A8);
-    public static final Color PANTS = rgb(0x3B44AA);
-    public static final Color SHOES = rgb(0x4A4A4A);
-    public static final Color EYE = rgb(0x2A3FBF);
+    private final Texture skin;
 
-    private final MinecraftUi ui;
+    // Front faces of the base layer, as {model x, model y, model w, model h, skin x, skin y}.
+    // The character's own right side is on the left of a front view, so the right arm/leg
+    // sit on the left columns. Skin y is measured from the top of the image.
+    private static final int[][] BASE = {
+            {4, 24, 8, 8,   8,  8},   // head
+            {4, 12, 8, 12, 20, 20},   // body
+            {0, 12, 4, 12, 44, 20},   // right arm
+            {12, 12, 4, 12, 36, 52},  // left arm
+            {4, 0, 4, 12,   4, 20},   // right leg
+            {8, 0, 4, 12,  20, 52},   // left leg
+    };
+    private static final int[][] OVERLAY = {
+            {4, 24, 8, 8,  40,  8},   // hat
+            {4, 12, 8, 12, 20, 36},   // jacket
+            {0, 12, 4, 12, 44, 36},   // right sleeve
+            {12, 12, 4, 12, 52, 52},  // left sleeve
+            {4, 0, 4, 12,   4, 36},   // right trouser
+            {8, 0, 4, 12,   4, 52},   // left trouser
+    };
+
+    private final TextureRegion[] base;
+    private final TextureRegion[] overlay;
 
     public Avatar(MinecraftUi ui) {
-        this.ui = ui;
+        this.skin = new Texture(Gdx.files.internal("data/skinzom.png"));
+        this.skin.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+        this.base = regions(BASE);
+        this.overlay = regions(OVERLAY);
+    }
+
+    private TextureRegion[] regions(int[][] table) {
+        TextureRegion[] out = new TextureRegion[table.length];
+        for (int i = 0; i < table.length; i++) {
+            int[] p = table[i];
+            out[i] = new TextureRegion(skin, p[4], p[5], p[2], p[3]);
+        }
+        return out;
     }
 
     /** Draws the character to fit the given box while keeping the right proportions. */
@@ -34,32 +68,22 @@ public final class Avatar {
         float originX = x + (width - MODEL_WIDTH * scale) * 0.5f;
         float originY = y + (height - MODEL_HEIGHT * scale) * 0.5f;
 
-        // Legs (y 0..12), body and arms (y 12..24), head (y 24..32).
-        part(batch, SHOES, originX, originY, scale, 4f, 0f, 4f, 2f);
-        part(batch, SHOES, originX, originY, scale, 8f, 0f, 4f, 2f);
-        part(batch, PANTS, originX, originY, scale, 4f, 2f, 4f, 10f);
-        part(batch, PANTS, originX, originY, scale, 8f, 2f, 4f, 10f);
-
-        part(batch, SHIRT, originX, originY, scale, 4f, 12f, 8f, 12f);
-        part(batch, SHIRT, originX, originY, scale, 0f, 16f, 4f, 8f);
-        part(batch, SHIRT, originX, originY, scale, 12f, 16f, 4f, 8f);
-        part(batch, SKIN, originX, originY, scale, 0f, 12f, 4f, 4f);
-        part(batch, SKIN, originX, originY, scale, 12f, 12f, 4f, 4f);
-
-        part(batch, SKIN, originX, originY, scale, 4f, 24f, 8f, 8f);
-        part(batch, HAIR, originX, originY, scale, 4f, 30f, 8f, 2f);
-        part(batch, EYE, originX, originY, scale, 5f, 27f, 2f, 1f);
-        part(batch, EYE, originX, originY, scale, 9f, 27f, 2f, 1f);
-
         batch.setColor(Color.WHITE);
+        drawLayer(batch, BASE, base, originX, originY, scale);
+        drawLayer(batch, OVERLAY, overlay, originX, originY, scale);
     }
 
-    private void part(SpriteBatch batch, Color color, float originX, float originY, float scale,
-                      float x, float y, float width, float height) {
-        ui.rect(batch, color, originX + x * scale, originY + y * scale, width * scale, height * scale);
+    private void drawLayer(SpriteBatch batch, int[][] table, TextureRegion[] regions,
+                           float originX, float originY, float scale) {
+        for (int i = 0; i < table.length; i++) {
+            int[] p = table[i];
+            batch.draw(regions[i], originX + p[0] * scale, originY + p[1] * scale,
+                    p[2] * scale, p[3] * scale);
+        }
     }
 
-    private static Color rgb(int hex) {
-        return new Color(((hex >> 16) & 0xFF) / 255f, ((hex >> 8) & 0xFF) / 255f, (hex & 0xFF) / 255f, 1f);
+    @Override
+    public void dispose() {
+        skin.dispose();
     }
 }

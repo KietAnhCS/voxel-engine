@@ -1,5 +1,6 @@
 package com.voxel.game.play;
 
+import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
@@ -35,6 +36,8 @@ public final class Hud {
     private static final float ROW_AIR_Y = 38f;
     private static final float XP_BAR_Y = 22f;
     private static final float XP_BAR_HEIGHT = 5f;
+    /** Toc do khung chon truot toi o moi (cang lon cang bam sat, cang nho cang muot). */
+    private static final float SELECT_SLIDE_SPEED = 18f;
 
     private final Inventory inventory;
     private final PlayerStats stats;
@@ -43,6 +46,8 @@ public final class Hud {
     private final MinecraftUi ui;
     private final BitmapFont font;
     private final GlyphLayout layout = new GlyphLayout();
+    /** Vi tri o dang chon dang duoc ve, truot dan toi o that de nhin muot. -1 = chua dat. */
+    private float animatedSlot = -1f;
 
     public Hud(Inventory inventory, PlayerStats stats, CommandConsole console,
                ItemRenderer items, BitmapFont font) {
@@ -62,6 +67,10 @@ public final class Hud {
      * @param inventoryOpen dang mo tui do thi giau thanh nhanh di, giong Minecraft
      */
     public void draw(SpriteBatch batch, int width, int height, GameMode mode, boolean inventoryOpen) {
+        // Vignette phu len the gioi (duoi moi thu HUD) cho khung hinh "dien anh".
+        batch.setColor(Color.WHITE);
+        batch.draw(ui.vignette, 0f, 0f, width, height);
+
         drawDamageFlash(batch, width, height);
 
         if (!inventoryOpen) {
@@ -115,12 +124,31 @@ public final class Hud {
             items.drawItem(batch, inventory.get(slot), slotX, edge, px(SLOT));
         }
 
-        // Khung o dang chon: 24x24, tho ra 1 diem anh moi ben so voi thanh nhanh.
-        float selectX = x + px(inventory.selected() * SLOT);
+        drawSelection(batch, x, edge);
+    }
+
+    /**
+     * Khung o dang chon: vien den ngoai, vien trang mong, roi vien magenta - phong cach
+     * goi Better Modded GUI. Khung TRUOT muot toi o moi thay vi nhay thang cho da mat.
+     */
+    private void drawSelection(SpriteBatch batch, float x, float edge) {
+        float target = inventory.selected();
+        if (animatedSlot < 0f || Math.abs(target - animatedSlot) > Inventory.HOTBAR_SIZE / 2f) {
+            // Lan dau, hoac cuon vong (o 8 -> o 0): bam thang, khong truot ngang het ca thanh.
+            animatedSlot = target;
+        } else {
+            animatedSlot += (target - animatedSlot)
+                    * Math.min(1f, Gdx.graphics.getDeltaTime() * SELECT_SLIDE_SPEED);
+        }
+
+        float selectX = x + px(animatedSlot * SLOT);
+        float size = px(24f);
         batch.setColor(Color.BLACK);
-        ui.frame(batch, selectX - edge, -edge, px(24f) + edge * 2f, px(24f) + edge * 2f, edge);
+        ui.frame(batch, selectX - edge, -edge, size + edge * 2f, size + edge * 2f, edge);
+        batch.setColor(MinecraftUi.ACCENT_EDGE);
+        ui.frame(batch, selectX, 0f, size, size, px(1f));
         batch.setColor(MinecraftUi.SELECTION);
-        ui.frame(batch, selectX, 0f, px(24f), px(24f), px(2f));
+        ui.frame(batch, selectX + px(1f), px(1f), size - px(2f), size - px(2f), px(2f));
         batch.setColor(Color.WHITE);
     }
 
@@ -159,26 +187,45 @@ public final class Hud {
         }
     }
 
-    /** 10 trai tim cho 20 mau; con le thi ve nua trai tim. */
+    /** 10 trai tim cho 20 mau; con le thi ve nua trai tim, dem tu TRAI sang phai. */
     private void drawHearts(SpriteBatch batch, float x) {
-        int health = stats.health();
-        batch.setColor(Color.WHITE);
-        for (int i = 0; i < ICONS; i++) {
-            int value = health - i * 2;
-            Texture texture = value >= 2 ? ui.heartFull : value == 1 ? ui.heartHalf : ui.heartEmpty;
-            batch.draw(texture, x + px(i * ICON_STEP), px(ROW_HEALTH_Y), px(ICON + 2f), px(ICON + 2f));
-        }
+        drawIconRow(batch, ui.heartEmpty, ui.heartHalf, ui.heartFull,
+                stats.health(), false, x, px(ROW_HEALTH_Y));
     }
 
     /** 10 dui ga cho 20 do no, vo dan tu PHAI sang trai giong Minecraft. */
     private void drawHunger(SpriteBatch batch, float x) {
-        int food = stats.food();
+        drawIconRow(batch, ui.hungerEmpty, ui.hungerHalf, ui.hungerFull,
+                stats.food(), true, x, px(ROW_HEALTH_Y));
+    }
+
+    /**
+     * Ve mot hang 10 bieu tuong theo dung cach Minecraft: ve het cac o NEN rong (_empty)
+     * truoc, roi da ban day (_full) hoac nua (_half) len tren - nho vay o nua van thay
+     * duoc phan nen toi con lai.
+     *
+     * @param value    tong so nua (mau hoac do no), moi bieu tuong an hai nua
+     * @param fromRight dem tu ben phai sang (dui ga) hay tu trai sang (trai tim)
+     */
+    private void drawIconRow(SpriteBatch batch, Texture empty, Texture half, Texture full,
+                             int value, boolean fromRight, float x, float y) {
+        float size = px(ICON);
         batch.setColor(Color.WHITE);
         for (int i = 0; i < ICONS; i++) {
-            int value = food - i * 2;
-            Texture texture = value >= 2 ? ui.hungerFull : value == 1 ? ui.hungerHalf : ui.hungerEmpty;
-            batch.draw(texture, iconFromRight(x, i), px(ROW_HEALTH_Y), px(ICON + 2f), px(ICON + 2f));
+            batch.draw(empty, iconX(x, i, fromRight), y, size, size);
         }
+        for (int i = 0; i < ICONS; i++) {
+            int slot = value - i * 2;
+            Texture fill = slot >= 2 ? full : slot == 1 ? half : null;
+            if (fill != null) {
+                batch.draw(fill, iconX(x, i, fromRight), y, size, size);
+            }
+        }
+    }
+
+    /** Vi tri ngang cua bieu tuong thu i, dem tu trai hoac tu phai tuy hang. */
+    private float iconX(float barX, int i, boolean fromRight) {
+        return fromRight ? iconFromRight(barX, i) : barX + px(i * ICON_STEP);
     }
 
     /** Bong bong khi nam ngay tren day dui ga, cung ben phai. */

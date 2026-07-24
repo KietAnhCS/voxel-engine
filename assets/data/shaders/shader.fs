@@ -33,6 +33,11 @@ void main()
         discard;
     vec4 finalColor = vec4(texColor.xyz * light.rgb, texColor.a);
 
+    // Tang do ruc (vibrance) nhe truoc khi tron suong mu - hoc tu goi shader Complementary
+    // de mau song hon ma khong lam chay chi tiet. Ap len mau da chieu sang, khong len suong mu.
+    float luma = dot(finalColor.rgb, vec3(0.299, 0.587, 0.114));
+    finalColor.rgb = clamp(mix(vec3(luma), finalColor.rgb, 1.18), 0.0, 1.0);
+
     const float LOG2 = 1.442695;
     float z = (gl_FragCoord.z / gl_FragCoord.w)/3.0;
     float fogFactor = exp2( -v_fogstr * v_fogstr * z * z * LOG2 );

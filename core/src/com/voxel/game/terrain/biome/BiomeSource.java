@@ -16,6 +16,15 @@ public final class BiomeSource {
     /** Khoang cach lay mau khi lam muot bien gioi biome (tinh bang khoi). */
     private static final int BLEND_STEP = 8;
 
+    // --- Song: mot ranh hep uon luon theo duong khong cua river-noise ---
+    private static final double RIVER_WIDTH = 0.045;   // ban rong long song (don vi noise)
+    private static final double RIVER_BED = 4.0;       // day song sau bao nhieu duoi muc bien
+    private static final double RIVER_MAX_RISE = 15.0; // dat cao hon muc bien qua ngan nay thi khong co song
+    // --- Ho: long chao tron o noi lake-noise nhoi len cao ---
+    private static final double LAKE_LEVEL = 0.55;     // lake-noise vuot nguong nay moi thanh ho
+    private static final double LAKE_BED = 5.0;
+    private static final double LAKE_MAX_RISE = 10.0;
+
     private final TerrainNoise noise;
 
     private final Biome ocean;
@@ -76,10 +85,12 @@ public final class BiomeSource {
         if (temperature < -0.35) {
             return snowyPlains;
         }
-        if (temperature > 0.35 && humidity < -0.10) {
+        // Vung NONG: kho thi sa mac (RONG, thay vi ngUONg cUc tri >0.35 lam sa mac bé teo),
+        // am hon thi savanna. Nguong ha xuong 0.22 & humidity<0 cho sa mac lien mach tu nhien.
+        if (temperature > 0.22 && humidity < 0.02) {
             return desert;
         }
-        if (temperature > 0.15 && humidity < 0.15) {
+        if (temperature > 0.12 && humidity < 0.15) {
             return savanna;
         }
         if (humidity > 0.15) {
@@ -109,7 +120,44 @@ public final class BiomeSource {
                 weightSum += weight;
             }
         }
-        return total / weightSum;
+        return carveWater(x, z, total / weightSum);
+    }
+
+    /**
+     * Khoet SONG va HO vao be mat da lam muot: ha do cao xuong duoi muc nuoc bien theo
+     * cac duong/vung nuoc, de {@code OceanStage} do nuoc len (SurfaceStage tu lot soi day nuoc).
+     *
+     * Song di theo duong "gan bang khong" cua river-noise nen keo dai, uon luon; ho la long
+     * chao tron o noi lake-noise nhoi cao. Ca hai chi khoet o vung thap (gan muc bien) de
+     * khong dam thung nui thanh hem nuoc ky quai.
+     */
+    private double carveWater(int x, int z, double height) {
+        int sea = noise.seaLevel();
+
+        if (height < sea + RIVER_MAX_RISE) {
+            double r = Math.abs(noise.river(x, z));
+            if (r < RIVER_WIDTH) {
+                double t = 1.0 - r / RIVER_WIDTH;       // 0 o bo -> 1 giua dong
+                t = t * t * (3.0 - 2.0 * t);            // smoothstep: bo song thoai
+                double bed = sea - RIVER_BED;
+                if (height > bed) {
+                    height -= t * (height - bed);
+                }
+            }
+        }
+
+        if (height < sea + LAKE_MAX_RISE) {
+            double l = noise.lake(x, z);
+            if (l > LAKE_LEVEL) {
+                double t = (l - LAKE_LEVEL) / (1.0 - LAKE_LEVEL);
+                t = t * t * (3.0 - 2.0 * t);
+                double bed = sea - LAKE_BED;
+                if (height > bed) {
+                    height -= t * (height - bed);
+                }
+            }
+        }
+        return height;
     }
 
     public Biome[] all() {

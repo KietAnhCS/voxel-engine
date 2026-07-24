@@ -44,6 +44,11 @@ public final class PlayerBody {
         controller.setGravity(new Vector3(0f, gravity, 0f));
     }
 
+    /** Xoa het van toc dang co (dung khi vao che do bay de khong con troi theo cu nhay truoc do). */
+    public void clearVelocity() {
+        controller.setLinearVelocity(new Vector3(0f, 0f, 0f));
+    }
+
     public void setWalkDirection(float x, float y, float z) {
         walkDirection.set(x, y, z);
         controller.setWalkDirection(walkDirection);

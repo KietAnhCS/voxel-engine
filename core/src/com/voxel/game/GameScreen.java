@@ -143,6 +143,8 @@ public final class GameScreen extends ScreenAdapter implements BlockInteraction 
         remoteRenderer.render(camera, worldClient.players());
         sendLocalState(delta);
         play.update(delta);
+        // Quai vat ve chung camera va bo dem do sau voi the gioi (sau engine, truoc giao dien 2D).
+        play.renderMonsters(camera);
         drawOverlay();
     }
 

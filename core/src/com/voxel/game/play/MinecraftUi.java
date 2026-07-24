@@ -1,5 +1,6 @@
 package com.voxel.game.play;
 
+import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Texture;
@@ -29,66 +30,32 @@ public final class MinecraftUi implements Disposable {
     /** Mot diem anh giao dien cua Minecraft bang bay nhieu diem anh that. */
     public static final float SCALE = 3f;
 
-    public static final Color PANEL_BG = rgb(0xC6C6C6);
-    public static final Color PANEL_LIGHT = rgb(0xFFFFFF);
-    public static final Color PANEL_DARK = rgb(0x555555);
-    public static final Color SLOT_BG = rgb(0x8B8B8B);
-    public static final Color SLOT_DARK = rgb(0x373737);
-    public static final Color TEXT_DARK = rgb(0x404040);
+    // Bang mau "toi + diem nhan tim" hoc tu goi Better Modded GUI (Better MC): panel than chi
+    // mau, o do gan den, khung o dang chon mau magenta ruc voi vien trang.
+    public static final Color PANEL_BG = rgb(0x2E2C37);
+    public static final Color PANEL_LIGHT = rgb(0x76747C);
+    public static final Color PANEL_DARK = rgb(0x131319);
+    public static final Color SLOT_BG = rgb(0x1B1A21);
+    public static final Color SLOT_DARK = rgb(0x000000);
+    /** Chu tren panel: nen toi nen chu phai SANG. */
+    public static final Color TEXT_DARK = rgb(0xDAD8E0);
 
     /** Vien ngoai va vach ngan cua thanh nhanh. */
-    public static final Color BAR_EDGE = rgb(0x909090);
-    public static final Color BAR_DIVIDER = rgb(0x656565);
-    /** Khung bao quanh o dang cam tren tay. */
-    public static final Color SELECTION = rgb(0xC6C6C6);
+    public static final Color BAR_EDGE = rgb(0x4A4753);
+    public static final Color BAR_DIVIDER = rgb(0x47444E);
+    /** Diem nhan magenta cho o dang chon; ACCENT_EDGE la vien trang sat mep. */
+    public static final Color SELECTION = rgb(0xEF51D5);
+    public static final Color ACCENT_EDGE = rgb(0xFFFFFF);
+    public static final Color ACCENT_DARK = rgb(0x8234AC);
 
     public static final Color XP_GREEN = rgb(0x80FF20);
     public static final Color XP_GREEN_DARK = rgb(0x5FCC00);
     public static final Color XP_EMPTY = rgb(0x1B2B0B);
 
-    /** Hinh trai tim 9x9. R = than tim, H = diem sang goc tren-trai moi buou. */
-    private static final String[] HEART = {
-            ".........",
-            "..HR.HR..",
-            ".RRRRRRR.",
-            ".RRRRRRR.",
-            ".RRRRRRR.",
-            "..RRRRR..",
-            "...RRR...",
-            "....R....",
-            "........."
-    };
-
-    /**
-     * Dui ga 9x9, NGHIENG nhu trong Minecraft: cuc thit chech len goc tren-phai,
-     * khuc xuong tho ra goc duoi-trai.
-     * L = thit mat tren (sang), D = thit mat duoi (toi), B = xuong, W = diem sang.
-     */
-    private static final String[] HUNGER = {
-            ".........",
-            "....LLL..",
-            "...LLLLL.",
-            "...LLLLL.",
-            "..DDDDDD.",
-            "..DDDDD..",
-            ".WDDD....",
-            "BW.......",
-            "........."
-    };
-
-    private static final int ICON = 9;
-    /** Anh to hon hinh 2 diem de con cho ve vien. */
-    private static final int ICON_PAD = ICON + 2;
+    /** Anh bong bong to hon hinh 2 diem de con cho ve vien. */
+    private static final int ICON_PAD = 11;
 
     private static final int OUTLINE = argb(0, 0, 0);
-    private static final int HEART_RED = argb(255, 0, 0);
-    private static final int HEART_SHADE = argb(193, 0, 0);
-    private static final int HEART_SHINE = argb(255, 107, 107);
-    private static final int MEAT = argb(217, 160, 102);
-    private static final int MEAT_SHADE = argb(143, 86, 59);
-    private static final int BONE = argb(238, 195, 154);
-    private static final int BONE_SHINE = argb(255, 255, 255);
-    private static final int EMPTY_ICON = argb(76, 76, 76);
     private static final int BUBBLE = argb(150, 220, 255);
     private static final int BUBBLE_SHINE = argb(255, 255, 255);
     private static final int BUBBLE_EDGE = argb(70, 130, 190);
@@ -103,62 +70,34 @@ public final class MinecraftUi implements Disposable {
     public final Texture bubblePop;
     /** Mot diem anh trang: keo gian ra de ve moi hinh chu nhat. */
     public final Texture white;
+    /** Lop toi mo dan tu giua ra vien man hinh - khung hinh "dien anh" hoc tu shader Complementary. */
+    public final Texture vignette;
 
     public MinecraftUi() {
-        heartFull = icon(HEART, false, false);
-        heartHalf = icon(HEART, true, false);
-        heartEmpty = icon(HEART, false, true);
-        hungerFull = icon(HUNGER, false, false);
-        hungerHalf = icon(HUNGER, true, false);
-        hungerEmpty = icon(HUNGER, false, true);
+        // Trai tim va dui ga lay tu goi "White Hunger": moi bieu tuong la mot anh 9x9
+        // rieng (nen xam _empty ve truoc, ban trang _full/_half da len tren).
+        heartFull = load("heart_full");
+        heartHalf = load("heart_half");
+        heartEmpty = load("heart_empty");
+        hungerFull = load("food_full");
+        hungerHalf = load("food_half");
+        hungerEmpty = load("food_empty");
         bubbleFull = bubble(false);
         bubblePop = bubble(true);
         white = onePixel();
+
+        // Vignette: loc Linear cho mo dan muot khi keo gian toan man hinh (khong bi vo o vuong).
+        vignette = new Texture(Gdx.files.internal("data/vignette.png"));
+        vignette.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
     }
 
     // ------------------------------------------------------------- bieu tuong
 
-    /**
-     * Ve mot bieu tuong tu tranh chu.
-     *
-     * @param half  chi to mau nua trai, nua phai de lo nen xam
-     * @param empty to toan bo bang mau xam (het mau / het do no)
-     */
-    private Texture icon(String[] art, boolean half, boolean empty) {
-        Pixmap pixmap = blank(ICON_PAD, ICON_PAD);
-
-        for (int row = 0; row < art.length; row++) {
-            for (int col = 0; col < art[row].length(); col++) {
-                char cell = art[row].charAt(col);
-                if (cell == '.') {
-                    continue;
-                }
-                int color = (empty || (half && col > 4)) ? EMPTY_ICON : shade(cell, row, col);
-                pixmap.drawPixel(col + 1, row + 1, color);
-            }
-        }
-        outline(pixmap);
-        return upload(pixmap);
-    }
-
-    /** Mau cua mot diem anh, da tinh ca dam nhat de hinh co khoi. */
-    private int shade(char cell, int row, int col) {
-        switch (cell) {
-            case 'R':
-                return row >= 6 ? HEART_SHADE : HEART_RED;
-            case 'H':
-                return HEART_SHINE;
-            case 'L':
-                return MEAT;
-            case 'D':
-                return MEAT_SHADE;
-            case 'B':
-                return BONE;
-            case 'W':
-                return BONE_SHINE;
-            default:
-                return EMPTY_ICON;
-        }
+    /** Nap mot bieu tuong 9x9 tu data/ va giu net vuong (khong lam mo khi phong to). */
+    private static Texture load(String name) {
+        Texture texture = new Texture(Gdx.files.internal("data/" + name + ".png"));
+        texture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+        return texture;
     }
 
     /** Bong bong khi: hinh tron nho, ban "vo" thi khuyet mot mieng. */
@@ -305,5 +244,6 @@ public final class MinecraftUi implements Disposable {
         bubbleFull.dispose();
         bubblePop.dispose();
         white.dispose();
+        vignette.dispose();
     }
 }

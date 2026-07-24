@@ -315,6 +315,8 @@ public final class VoxelEngine implements Disposable {
     private void processInteractions() {
         InteractionRequest request = controller.pollRequest();
         while (request != null) {
+            // Moi lan bam chuot la nhan vat quo tay phai ra tuong tac (thay ro o goc nhin thu 3).
+            playerModel.swingArm();
             if (interaction != null && raycaster.cast(world, camera.position, camera.direction, REACH, hit)) {
                 if (request == InteractionRequest.BREAK) {
                     interaction.onBreak(world, hit);

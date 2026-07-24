@@ -24,10 +24,9 @@ public final class SwimmingState implements MovementState {
             return new GroundState();
         }
 
+        // Sinh ton duoi nuoc: KHONG the ngoi len bang cach bam nhay - trong luc keo xuong,
+        // nguoi choi CHIM dan (giong yeu cau "bi chim luon"). Muon len phai bat che do bay.
         float vertical = 0f;
-        if (input.rise()) {
-            vertical += BUOYANCY;
-        }
         if (input.sink()) {
             vertical -= BUOYANCY;
         }

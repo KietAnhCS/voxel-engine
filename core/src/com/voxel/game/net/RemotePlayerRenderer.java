@@ -1,25 +1,24 @@
 package com.voxel.game.net;
 
-import com.badlogic.gdx.graphics.Color;
-import com.badlogic.gdx.graphics.GL20;
+import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.PerspectiveCamera;
-import com.badlogic.gdx.graphics.VertexAttributes;
+import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g3d.Environment;
-import com.badlogic.gdx.graphics.g3d.Material;
 import com.badlogic.gdx.graphics.g3d.Model;
 import com.badlogic.gdx.graphics.g3d.ModelBatch;
 import com.badlogic.gdx.graphics.g3d.ModelInstance;
 import com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute;
-import com.badlogic.gdx.graphics.g3d.utils.ModelBuilder;
 import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.utils.Disposable;
+import com.voxel.engine.render.PlayerMesh;
 
 /**
  * Ve avatar cho nhung nguoi choi KHAC trong the gioi chung.
  *
  * Dung DUNG MOT hinh nguoi (sau khoi hop, ti le nhu Minecraft giong {@code PlayerModel}) roi
  * dat lai vi tri va ve lai cho tung nguoi - re, don gian, du cho vai nguoi choi cung luc.
- * Khac ban local: khong vung tay chan cho gon; ai cung mac ao mau khac de de phan biet ban be.
+ * Hinh nguoi boc cung mot skin 64x64 ({@code skinzom.png}) nhu ban local; khong vung tay chan
+ * cho gon.
  */
 public final class RemotePlayerRenderer implements Disposable {
 
@@ -28,11 +27,7 @@ public final class RemotePlayerRenderer implements Disposable {
     /** Mot don vi 1/16 block sau khi thu nho. */
     private static final float U = HEIGHT / 32f;
 
-    private static final Color SKIN = rgb(0xE8B98D);
-    private static final Color HAIR = rgb(0x3F2A17);
-    private static final Color SHIRT = rgb(0xC0392B);
-    private static final Color PANTS = rgb(0x2C3E50);
-
+    private final Texture skin;
     private final Model model;
     private final ModelInstance instance;
     private final ModelBatch batch = new ModelBatch();
@@ -40,20 +35,10 @@ public final class RemotePlayerRenderer implements Disposable {
     private final Vector3 feet = new Vector3();
 
     public RemotePlayerRenderer() {
-        ModelBuilder builder = new ModelBuilder();
-        long attributes = VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal;
+        skin = new Texture(Gdx.files.internal("data/skinzom.png"));
+        skin.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
 
-        builder.begin();
-        // Goc toa do nam giua hai ban chan, truc y huong len - giong PlayerModel.
-        box(builder, attributes, PANTS, 4f, 12f, 4f, -2f, 6f, 0f);   // chan trai
-        box(builder, attributes, PANTS, 4f, 12f, 4f, 2f, 6f, 0f);    // chan phai
-        box(builder, attributes, SHIRT, 8f, 12f, 4f, 0f, 18f, 0f);   // than
-        box(builder, attributes, SHIRT, 4f, 12f, 4f, -6f, 18f, 0f);  // tay trai
-        box(builder, attributes, SHIRT, 4f, 12f, 4f, 6f, 18f, 0f);   // tay phai
-        box(builder, attributes, SKIN, 8f, 8f, 8f, 0f, 28f, 0f);     // dau
-        box(builder, attributes, HAIR, 8.4f, 1.6f, 8.4f, 0f, 31.4f, 0f); // toc
-        model = builder.end();
-
+        model = PlayerMesh.build(skin, U);
         instance = new ModelInstance(model);
         environment.set(new ColorAttribute(ColorAttribute.AmbientLight, 0.85f, 0.85f, 0.85f, 1f));
     }
@@ -72,21 +57,10 @@ public final class RemotePlayerRenderer implements Disposable {
         batch.end();
     }
 
-    private void box(ModelBuilder builder, long attributes, Color color,
-                     float width, float height, float depth, float cx, float cy, float cz) {
-        builder.part("part", GL20.GL_TRIANGLES, attributes,
-                        new Material(ColorAttribute.createDiffuse(color)))
-                .box(cx * U, cy * U, cz * U, width * U, height * U, depth * U);
-    }
-
-    private static Color rgb(int hex) {
-        return new Color(((hex >> 16) & 0xFF) / 255f, ((hex >> 8) & 0xFF) / 255f,
-                (hex & 0xFF) / 255f, 1f);
-    }
-
     @Override
     public void dispose() {
         batch.dispose();
         model.dispose();
+        skin.dispose();
     }
 }

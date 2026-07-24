@@ -1,16 +1,13 @@
 package com.voxel.engine.render;
 
-import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.PerspectiveCamera;
-import com.badlogic.gdx.graphics.VertexAttributes;
+import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g3d.Environment;
-import com.badlogic.gdx.graphics.g3d.Material;
 import com.badlogic.gdx.graphics.g3d.Model;
 import com.badlogic.gdx.graphics.g3d.ModelBatch;
 import com.badlogic.gdx.graphics.g3d.ModelInstance;
 import com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute;
-import com.badlogic.gdx.graphics.g3d.utils.ModelBuilder;
-import com.badlogic.gdx.math.Matrix4;
 import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.utils.Disposable;
 
@@ -20,6 +17,7 @@ import com.badlogic.gdx.utils.Disposable;
  * The character is built from six boxes in true Minecraft proportions (measured in 1/16 block):
  * head 8x8x8, body 8x12x4, the two arms and two legs 4x12x4 - 32 units tall in total,
  * that is 2 blocks, then scaled down to {@link #HEIGHT} to match the real player height.
+ * A 64x64 skin texture is wrapped around the boxes by {@link PlayerMesh}.
  *
  * The arms and legs are separate NODES, so rotating a node is enough to make the character walk.
  */
@@ -31,51 +29,29 @@ public final class PlayerModel implements Disposable {
     private static final float U = HEIGHT / 32f;
     private static final float SWING_SPEED = 9f;
     private static final float SWING_ANGLE = 42f;
+    /** Cu quo tay phai tat dan trong ~0.22 giay (1 / 4.5). */
+    private static final float ARM_SWING_DECAY = 4.5f;
+    /** Bien do tay phai vung ra khi pha / dat khoi. */
+    private static final float PUNCH_ANGLE = 70f;
 
-    private static final Color SKIN = rgb(0xE8B98D);
-    private static final Color HAIR = rgb(0x3F2A17);
-    private static final Color SHIRT = rgb(0x00A8A8);
-    private static final Color PANTS = rgb(0x3B44AA);
-
+    private final Texture skin;
     private final Model model;
     private final ModelInstance instance;
     private final ModelBatch batch = new ModelBatch();
     private final Environment environment = new Environment();
-    private final Matrix4 transform = new Matrix4();
     private final Vector3 tempPosition = new Vector3();
 
     private float swingPhase;
+    /** Do "quo tay phai", 1 ngay sau cu bam roi tat dan ve 0. */
+    private float armSwing;
 
     public PlayerModel() {
-        ModelBuilder builder = new ModelBuilder();
-        long attributes = VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal;
+        skin = new Texture(Gdx.files.internal("data/skinzom.png"));
+        skin.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
 
-        builder.begin();
-        // The origin sits under the character's feet, with the y axis pointing up.
-        box(builder, attributes, "legLeft", PANTS, 4f, 12f, 4f, -2f, 6f, 0f);
-        box(builder, attributes, "legRight", PANTS, 4f, 12f, 4f, 2f, 6f, 0f);
-        box(builder, attributes, "body", SHIRT, 8f, 12f, 4f, 0f, 18f, 0f);
-        box(builder, attributes, "armLeft", SHIRT, 4f, 12f, 4f, -6f, 18f, 0f);
-        box(builder, attributes, "armRight", SHIRT, 4f, 12f, 4f, 6f, 18f, 0f);
-        box(builder, attributes, "head", SKIN, 8f, 8f, 8f, 0f, 28f, 0f);
-        box(builder, attributes, "hair", HAIR, 8.4f, 1.6f, 8.4f, 0f, 31.4f, 0f);
-        model = builder.end();
-
+        model = PlayerMesh.build(skin, U);
         instance = new ModelInstance(model);
         environment.set(new ColorAttribute(ColorAttribute.AmbientLight, 0.85f, 0.85f, 0.85f, 1f));
-    }
-
-    /**
-     * Adds a box as its own node.
-     *
-     * @param cx,cy,cz box centre, in 1/16 block relative to the point between the feet
-     */
-    private void box(ModelBuilder builder, long attributes, String name, Color color,
-                     float width, float height, float depth, float cx, float cy, float cz) {
-        builder.node().id = name;
-        builder.part(name, com.badlogic.gdx.graphics.GL20.GL_TRIANGLES, attributes,
-                        new Material(ColorAttribute.createDiffuse(color)))
-                .box(cx * U, cy * U, cz * U, width * U, height * U, depth * U);
     }
 
     /**
@@ -93,14 +69,25 @@ public final class PlayerModel implements Disposable {
             swingPhase *= Math.max(0f, 1f - delta * 8f);
         }
 
+        // Cu quo tay tat dan sau moi lan pha / dat khoi.
+        armSwing = Math.max(0f, armSwing - delta * ARM_SWING_DECAY);
+
         tempPosition.set(feet);
         instance.transform.setToTranslation(tempPosition).rotate(Vector3.Y, yaw);
 
+        // Chan trai/phai (va tay) vung nguoc chieu nhau -> dang di tu nhien: chan truoc chan sau.
         float swing = (float) Math.sin(swingPhase) * SWING_ANGLE;
+        // Tay phai vong ra truoc roi ve cho: mot cung sin(0..pi) khi armSwing chay tu 1 ve 0.
+        float punch = (float) Math.sin(armSwing * Math.PI) * PUNCH_ANGLE;
         swingLimb("legLeft", swing, 12f);
         swingLimb("legRight", -swing, 12f);
         swingLimb("armLeft", -swing, 24f);
-        swingLimb("armRight", swing, 24f);
+        swingLimb("armRight", swing - punch, 24f);
+    }
+
+    /** Quo tay phai ra mot cai - goi khi nguoi choi pha hoac dat khoi. */
+    public void swingArm() {
+        armSwing = 1f;
     }
 
     /** Rotates one arm/leg around the joint with the body at height {@code pivotY}. */
@@ -122,14 +109,10 @@ public final class PlayerModel implements Disposable {
         batch.end();
     }
 
-    private static Color rgb(int hex) {
-        return new Color(((hex >> 16) & 0xFF) / 255f, ((hex >> 8) & 0xFF) / 255f,
-                (hex & 0xFF) / 255f, 1f);
-    }
-
     @Override
     public void dispose() {
         batch.dispose();
         model.dispose();
+        skin.dispose();
     }
 }

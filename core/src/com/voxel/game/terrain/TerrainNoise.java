@@ -18,6 +18,8 @@ public final class TerrainNoise {
     private final SimplexNoise strataField;
     private final SimplexNoise caveField;
     private final SimplexNoise wormField;
+    private final SimplexNoise riverField;
+    private final SimplexNoise lakeField;
 
     private final long seed;
     private final int seaLevel;
@@ -34,6 +36,8 @@ public final class TerrainNoise {
         this.strataField = new SimplexNoise(seed * 17L + 32452843L);
         this.caveField = new SimplexNoise(seed * 19L + 49979687L);
         this.wormField = new SimplexNoise(seed * 23L + 86028121L);
+        this.riverField = new SimplexNoise(seed * 29L + 122949823L);
+        this.lakeField = new SimplexNoise(seed * 37L + 217645199L);
     }
 
     /** Continent: negative is ocean, positive is land. */
@@ -56,14 +60,32 @@ public final class TerrainNoise {
         return 1.0 - Math.abs(ridgeField.fractal2d(x, z, 4, 0.0042, 2.0, 0.5));
     }
 
-    /** Temperature: negative is cold (snow), positive is hot (desert). */
+    /**
+     * Temperature: negative is cold (snow), positive is hot (desert).
+     * Tan so THAP (0.0008) cho cac vung khi hau RONG, lien mach nhu Minecraft - tranh sa mac
+     * bé teo lac giua dong bang.
+     */
     public double temperature(int x, int z) {
-        return temperatureField.fractal2d(x, z, 2, 0.0011, 2.0, 0.5);
+        return temperatureField.fractal2d(x, z, 2, 0.0008, 2.0, 0.5);
     }
 
-    /** Humidity: negative is dry, positive is wet (dense forest, swamp). */
+    /** Humidity: negative is dry, positive is wet (dense forest, swamp). Tan so thap cho vung rong. */
     public double humidity(int x, int z) {
-        return humidityField.fractal2d(x, z, 2, 0.0016, 2.0, 0.5);
+        return humidityField.fractal2d(x, z, 2, 0.0010, 2.0, 0.5);
+    }
+
+    /**
+     * River field: a smooth low-frequency value ~[-1, 1]. The ZERO line of a smooth 2D noise
+     * is a long winding curve, so treating "close to zero" as a river channel gives long,
+     * meandering rivers. Two octaves keep the banks gently wiggly instead of geometric.
+     */
+    public double river(int x, int z) {
+        return riverField.fractal2d(x, z, 2, 0.0016, 2.0, 0.5);
+    }
+
+    /** Lake field: rounded blobs; a high value marks an inland basin to sink into a lake. */
+    public double lake(int x, int z) {
+        return lakeField.fractal2d(x, z, 2, 0.0032, 2.0, 0.5);
     }
 
     /** Underground strata, used to mix limestone / slate / sandstone. */
