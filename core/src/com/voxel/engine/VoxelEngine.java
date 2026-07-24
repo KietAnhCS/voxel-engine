@@ -30,7 +30,9 @@ import com.voxel.engine.physics.PlayerBody;
 import com.voxel.engine.physics.VoxelRaycaster;
 import com.voxel.engine.physics.state.FlightState;
 import com.voxel.engine.physics.state.GroundState;
+import com.voxel.engine.render.DayNightCycle;
 import com.voxel.engine.render.PlayerModel;
+import com.voxel.engine.render.SkyRenderer;
 import com.voxel.engine.render.ViewMode;
 import com.voxel.engine.render.WorldRenderer;
 import com.voxel.engine.world.Chunk;
@@ -67,8 +69,14 @@ public final class VoxelEngine implements Disposable {
     private final VoxelRaycaster.Hit hit = new VoxelRaycaster.Hit();
     private final VoxelRaycaster.Hit cameraHit = new VoxelRaycaster.Hit();
     private final PlayerModel playerModel = new PlayerModel();
+    /** Dong ho ngay dem: quyet dinh do sang, mau troi va cho dung cua mat troi. */
+    private final DayNightCycle dayCycle = new DayNightCycle();
+    private final SkyRenderer sky = new SkyRenderer();
     private final Vector3 orbit = new Vector3();
     private final Vector3 feet = new Vector3();
+    /** Vi tri ban chan khung hinh truoc - de biet nguoi choi vua di duoc bao xa. */
+    private final Vector3 previousFeet = new Vector3();
+    private boolean feetTracked;
     private final Color skyColor = new Color(0.44f, 0.66f, 0.94f, 1f);
     private final Color waterColor = new Color(0.05f, 0.13f, 0.28f, 1f);
     private final ColorAttribute fogAttribute;
@@ -147,6 +155,7 @@ public final class VoxelEngine implements Disposable {
 
     public void render(float delta) {
         elapsed += delta;
+        dayCycle.advance(delta);
         controller.applyMouseLook();
         controller.poll();
 
@@ -180,6 +189,9 @@ public final class VoxelEngine implements Disposable {
         eye.set(position.x, position.y + PlayerBody.EYE_HEIGHT, position.z);
         submerged = world.isSubmerged(eye);
         player.setSubmerged(world.isSubmerged(position));
+        // Rieng ban chan: dung de biet co con dam nuoc de nhun len bo khong.
+        feet.set(position.x, position.y - PLAYER_HALF_HEIGHT + 0.1f, position.z);
+        player.setFeetInWater(world.isSubmerged(feet));
 
         MovementState next = movementState.update(player, controller.input(), FIXED_STEP);
         if (next != movementState) {
@@ -301,15 +313,27 @@ public final class VoxelEngine implements Disposable {
         return viewMode;
     }
 
-    /** Places the player model in the right spot and swings the limbs with the walk cycle. */
+    /**
+     * Places the player model in the right spot and swings the limbs with the walk cycle.
+     *
+     * Nhip tay chan tinh theo QUANG DUONG chan vua di duoc (khong phai theo phim bam), nen
+     * di cham thi vung cham, bi day / truot tren bang cung vung dung, dung lai thi duoi thang.
+     */
     private void updatePlayerModel(float delta) {
+        Vector3 position = player.position();
+        feet.set(position.x, position.y - PLAYER_HALF_HEIGHT, position.z);
+
+        float dx = feet.x - previousFeet.x;
+        float dz = feet.z - previousFeet.z;
+        float distance = feetTracked ? (float) Math.sqrt(dx * dx + dz * dz) : 0f;
+        previousFeet.set(feet);
+        feetTracked = true;
+
         if (!viewMode.showsPlayer()) {
             return;
         }
-        Vector3 position = player.position();
-        feet.set(position.x, position.y - PLAYER_HALF_HEIGHT, position.z);
         float yaw = MathUtils.atan2(camera.direction.x, camera.direction.z) * MathUtils.radiansToDegrees;
-        playerModel.update(feet, yaw, controller.input().isMoving(), delta);
+        playerModel.update(feet, yaw, distance, delta);
     }
 
     private void processInteractions() {
@@ -317,18 +341,49 @@ public final class VoxelEngine implements Disposable {
         while (request != null) {
             // Moi lan bam chuot la nhan vat quo tay phai ra tuong tac (thay ro o goc nhin thu 3).
             playerModel.swingArm();
-            if (interaction != null && raycaster.cast(world, camera.position, camera.direction, REACH, hit)) {
-                if (request == InteractionRequest.BREAK) {
-                    interaction.onBreak(world, hit);
-                } else {
-                    interaction.onPlace(world, hit, request == InteractionRequest.PLACE_ALTERNATE);
-                }
-            }
+            handleInteraction(request);
             request = controller.pollRequest();
         }
     }
 
+    /**
+     * Mot lan bam chuot. Chuot trai uu tien DANH sinh vat dang o trong tam ngam, khong trung
+     * ai moi pha khoi - dung nhu Minecraft. Khoi da chan tam nhin thi sinh vat nap sau khoi do
+     * cung khong an don, nen tam voi bi cat ngan bang khoang cach toi khoi.
+     */
+    private void handleInteraction(InteractionRequest request) {
+        if (interaction == null) {
+            return;
+        }
+        boolean blockInSight = raycaster.cast(world, camera.position, camera.direction, REACH, hit);
+
+        if (request == InteractionRequest.BREAK) {
+            float reach = blockInSight ? distanceTo(hit) : REACH;
+            if (interaction.onAttack(camera.position, camera.direction, reach)) {
+                return;
+            }
+        }
+        if (!blockInSight) {
+            return;
+        }
+        if (request == InteractionRequest.BREAK) {
+            interaction.onBreak(world, hit);
+        } else {
+            interaction.onPlace(world, hit, request == InteractionRequest.PLACE_ALTERNATE);
+        }
+    }
+
+    /** Khoang cach tu mat nguoi choi toi giua o khoi dang ngam. */
+    private float distanceTo(VoxelRaycaster.Hit target) {
+        float dx = target.blockX() + 0.5f - camera.position.x;
+        float dy = target.blockY() + 0.5f - camera.position.y;
+        float dz = target.blockZ() + 0.5f - camera.position.z;
+        return (float) Math.sqrt(dx * dx + dy * dy + dz * dz);
+    }
+
     private void drawWorld() {
+        // Mau nen VA mau suong mu deu lay tu dong ho ngay dem: sang xanh, chieu cam, dem tham.
+        skyColor.set(dayCycle.skyColor());
         Color background = submerged ? waterColor : skyColor;
         fogAttribute.color.set(background);
 
@@ -338,9 +393,16 @@ public final class VoxelEngine implements Disposable {
         Gdx.gl.glEnable(GL20.GL_CULL_FACE);
         Gdx.gl.glCullFace(GL20.GL_BACK);
 
+        // Mat troi / mat trang / may ve TRUOC TIEN nhu tam phong nen: moi khoi dat da ve sau
+        // deu che len tren, nen mat troi luon nam sau nui chu khong de len khoi nao.
+        if (!submerged) {
+            sky.render(camera, dayCycle, elapsed);
+        }
+
         shaderProgram.bind();
         shaderProgram.setUniformf("u_fogstr", submerged ? 0.11f : 0.028f);
         shaderProgram.setUniformf("u_time", elapsed);
+        shaderProgram.setUniformf("u_daylight", dayCycle.daylight());
 
         batch.begin(camera);
         batch.render(renderer.solidPass(), environment);
@@ -416,9 +478,33 @@ public final class VoxelEngine implements Disposable {
         return controller;
     }
 
+    /** Dong ho ngay dem - phan luat choi hoi de biet dem chua (quai vat) va de hien gio. */
+    public DayNightCycle dayCycle() {
+        return dayCycle;
+    }
+
+    /** Do sang bau troi tai o khoi nay: dung de biet cho do co du toi cho quai vat sinh ra khong. */
+    public int skyLightAt(int blockX, int blockY, int blockZ) {
+        return world.skyLightAt(blockX, blockY, blockZ);
+    }
+
+    /** Do sang cua duoc / den tai o khoi nay. */
+    public int blockLightAt(int blockX, int blockY, int blockZ) {
+        return world.blockLightAt(blockX, blockY, blockZ);
+    }
+
     /** Position of the player's feet. Used to compute fall damage. */
     public Vector3 playerPosition() {
         return player.position();
+    }
+
+    /**
+     * Cao do BAN CHAN nguoi choi. {@link #playerPosition()} tra ve tam hinh va cham (cao hon
+     * ban chan nua than nguoi), nen khi gui vi tri cho may khac ve avatar phai dung so nay -
+     * neu khong nhan vat cua minh se lo lung tren khong ben man hinh ho.
+     */
+    public float playerFeetY() {
+        return player.position().y - PLAYER_HALF_HEIGHT;
     }
 
     public boolean playerOnGround() {
@@ -455,6 +541,7 @@ public final class VoxelEngine implements Disposable {
     @Override
     public void dispose() {
         playerModel.dispose();
+        sky.dispose();
         renderer.dispose();
         world.dispose();
         physics.dispose();

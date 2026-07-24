@@ -12,9 +12,13 @@ import com.badlogic.gdx.utils.Disposable;
 import com.voxel.engine.VoxelEngine;
 import com.voxel.engine.block.Block;
 import com.voxel.game.Blocks;
+import com.voxel.game.combat.Attackable;
+import com.voxel.game.combat.MeleeAim;
+import com.voxel.game.mob.Monster;
 import com.voxel.game.mob.MonsterManager;
 import com.voxel.game.mob.PlayerTarget;
 
+import java.util.Collection;
 import java.util.Map;
 
 /**
@@ -28,6 +32,19 @@ import java.util.Map;
  */
 public final class PlaySession extends InputAdapter implements Disposable, PlayerTarget {
 
+    /** Tam voi cua cu dam tay khong (khoi), lay theo Minecraft. */
+    private static final float ATTACK_REACH = 3.5f;
+    /** Moi cu dam tru bay nhieu mau: zombie 20 mau -> bon cu la ha. */
+    private static final int PUNCH_DAMAGE = 5;
+    /** Nghi tay giua hai cu danh (giay) - khong cho bam lien tay. */
+    private static final float ATTACK_COOLDOWN = 0.35f;
+    /** Ha mot con quai duoc bay nhieu diem kinh nghiem. */
+    private static final int KILL_EXPERIENCE = 5;
+    /** Pha mot o la cay thi bao nhieu phan tram rot ra qua tao. */
+    private static final float LEAF_DROP_CHANCE = 0.3f;
+    /** Giu chuot phai bao lau thi an xong mot mon (giay). */
+    private static final float EAT_TIME = 1.2f;
+
     private final VoxelEngine engine;
     private final Blocks blocks;
     private final PlayerStats stats = new PlayerStats();
@@ -40,8 +57,19 @@ public final class PlaySession extends InputAdapter implements Disposable, Playe
     private final Hud hud;
     /** He quai vat (chi hoat dong o sinh ton). PlaySession dong vai "nguoi choi" cho no danh. */
     private final MonsterManager monsters;
+    /** Bo ngam cu dam: tim sinh vat gan nhat nam trong tam ngam. */
+    private final MeleeAim aim = new MeleeAim();
+    /** Vi tri ban chan nguoi choi, tinh lai moi lan quai vat hoi den. */
+    private final Vector3 playerFeet = new Vector3();
+
+    /** Bo sinh so ngau nhien cho ti le rot do khi pha khoi. */
+    private final java.util.Random random = new java.util.Random();
 
     private GameMode mode = GameMode.CREATIVE;
+    /** Con bao lau nua moi duoc danh cu tiep. */
+    private float attackCooldown;
+    /** Da giu chuot phai de an duoc bao lau. */
+    private float eatTimer;
     private boolean debugVisible = true;
     /** Nuot ky tu ngay sau khi mo khung chat, keo phim mo lai lot vao o go chu. */
     private boolean swallowNextTyped;
@@ -56,8 +84,8 @@ public final class PlaySession extends InputAdapter implements Disposable, Playe
         this.monsters = new MonsterManager(engine.world(), this);
 
         registerCommands();
-        fillStarterHotbar();
-        setMode(GameMode.CREATIVE);
+        // Vao game la SINH TON, tui do trong tron - tu di dao lay khoi ma xay.
+        setMode(GameMode.SURVIVAL);
         console.log("Go /help de xem cac lenh. Bam E de mo tui do.");
     }
 
@@ -85,6 +113,33 @@ public final class PlaySession extends InputAdapter implements Disposable, Playe
         };
         console.register("gamemode", gamemode);
         console.register("gm", gamemode);
+
+        console.register("time", new Command() {
+            @Override
+            public String run(String[] args) {
+                if (args.length == 0) {
+                    return "Bay gio la " + engine.dayCycle().clockLabel();
+                }
+                String when = args[0].toLowerCase();
+                if (when.equals("day") || when.equals("ngay")) {
+                    engine.dayCycle().setTime(0.25f);
+                } else if (when.equals("night") || when.equals("dem")) {
+                    engine.dayCycle().setTime(0.75f);
+                } else if (when.equals("dawn") || when.equals("binhminh")) {
+                    engine.dayCycle().setTime(0f);
+                } else if (when.equals("dusk") || when.equals("hoanghon")) {
+                    engine.dayCycle().setTime(0.5f);
+                } else {
+                    return "Dung: /time day|night|dawn|dusk";
+                }
+                return "Da doi gio thanh " + engine.dayCycle().clockLabel();
+            }
+
+            @Override
+            public String usage() {
+                return "/time <day|night|dawn|dusk>  - doi gio trong ngay";
+            }
+        });
 
         console.register("heal", new Command() {
             @Override
@@ -144,14 +199,6 @@ public final class PlaySession extends InputAdapter implements Disposable, Playe
         });
     }
 
-    private void fillStarterHotbar() {
-        Block[] starter = {blocks.grass, blocks.dirt, blocks.stone, blocks.cobblestone,
-                blocks.planks, blocks.brick, blocks.sand, blocks.lamp, blocks.torch};
-        for (int slot = 0; slot < starter.length; slot++) {
-            inventory.set(slot, new ItemStack(starter[slot], ItemStack.MAX_COUNT));
-        }
-    }
-
     public void setMode(GameMode mode) {
         this.mode = mode;
         // Chi che do sang tao moi bay duoc; doi ve sinh ton la roi xuong dat ngay.
@@ -185,8 +232,18 @@ public final class PlaySession extends InputAdapter implements Disposable, Playe
                 engine.playerInWater(),
                 engine.isPlayerMoving());
 
-        // Quai vat: chi lung suc o sinh ton, tu duoi va danh nguoi choi (xem MonsterManager).
-        monsters.update(delta, mode.isSurvival());
+        attackCooldown = Math.max(0f, attackCooldown - delta);
+        updateEating(delta);
+
+        // Quai vat: chi lung suc o sinh ton va khi troi toi (xem MonsterManager).
+        monsters.update(delta, mode.isSurvival(), engine.dayCycle().isNight());
+
+        // Ha duoc con nao thi bao va cong kinh nghiem.
+        int killed = monsters.takeKills();
+        for (int i = 0; i < killed; i++) {
+            stats.addExperience(KILL_EXPERIENCE);
+            console.log("Da ha mot Zombie!");
+        }
 
         // Chet thi cung do nhu dang mo giao dien: khong di chuyen, hien con tro chuot.
         if (stats.isDead() && engine.controller().isEnabled()) {
@@ -199,11 +256,60 @@ public final class PlaySession extends InputAdapter implements Disposable, Playe
         monsters.render(camera);
     }
 
+    // ------------------------------------------------------------------ danh nhau
+
+    /**
+     * Chuot trai o che do SINH TON: dam sinh vat gan nhat dang nam trong tam ngam - quai vat
+     * hoac nguoi choi khac deu duoc, ai dung gan hon thi an don.
+     *
+     * <p>Che do sang tao thi khong danh ai (chi pha khoi), giong Minecraft.
+     *
+     * @param others nhung nguoi choi khac dang o quanh day
+     * @return true neu danh trung - luc do engine khong pha khoi nua
+     */
+    public boolean attack(Vector3 origin, Vector3 direction, float reach,
+                          Collection<? extends Attackable> others) {
+        if (!mode.isSurvival() || stats.isDead() || attackCooldown > 0f) {
+            return false;
+        }
+
+        aim.aimFrom(origin, direction, Math.min(reach, ATTACK_REACH));
+        for (Monster monster : monsters.alive()) {
+            aim.consider(monster);
+        }
+        for (Attackable other : others) {
+            aim.consider(other);
+        }
+
+        Attackable target = aim.target();
+        if (target == null) {
+            return false;
+        }
+        attackCooldown = ATTACK_COOLDOWN;
+        target.takeHit(PUNCH_DAMAGE);
+        return true;
+    }
+
+    /** Minh vua bi mot nguoi choi khac danh (tin bao ve tu server). */
+    public void hurtBy(String attacker, int damage) {
+        if (!mode.isSurvival() || stats.isDead() || damage <= 0) {
+            return;
+        }
+        stats.damage(damage);
+        console.log(attacker + " danh ban " + damage + " mau!");
+    }
+
     // -------------------------------------------------- PlayerTarget (goc nhin cua quai vat)
 
+    /**
+     * Vi tri BAN CHAN nguoi choi. Quai vat cung lay moc o ban chan, nho vay so sanh cao do
+     * giua hai ben moi dung - va bo tim duong A* cung nham dung o khoi nguoi choi dang dung.
+     */
     @Override
     public Vector3 position() {
-        return engine.playerPosition();
+        Vector3 body = engine.playerPosition();
+        playerFeet.set(body.x, engine.playerFeetY(), body.z);
+        return playerFeet;
     }
 
     @Override
@@ -232,15 +338,59 @@ public final class PlaySession extends InputAdapter implements Disposable, Playe
     /**
      * Pha mot khoi. O che do sinh ton thi khoi vua pha roi vao tui do
      * (tru chat long - khong ai nhat duoc nuoc bang tay).
+     *
+     * <p>Rieng LA CAY thi khong nhat duoc la: chi {@link #LEAF_DROP_CHANCE} co hoi rot ra
+     * mot qua tao, con lai la tan bien - giong Minecraft.
      */
     public void onBreak(Block broken) {
         if (!mode.isSurvival() || broken.isAir() || broken.isLiquid()) {
             return;
         }
-        if (!inventory.add(broken)) {
+
+        Block drop = dropFor(broken);
+        if (drop == null) {
+            return;
+        }
+        if (!inventory.add(drop)) {
             console.log("Tui do da day!");
         }
         stats.addExperience(1);
+    }
+
+    /** Pha khoi nay thi nhat duoc gi? null la khong duoc gi ca. */
+    private Block dropFor(Block broken) {
+        if (broken != blocks.leaves && broken != blocks.pineLeaves) {
+            return broken;
+        }
+        return random.nextFloat() < LEAF_DROP_CHANCE ? blocks.apple : null;
+    }
+
+    /**
+     * Giu CHUOT PHAI de an mon dang cam. Sau {@link #EAT_TIME} giay thi mon do bien mat va
+     * do no day len. Bo tay ra giua chung thi phai an lai tu dau.
+     */
+    private void updateEating(float delta) {
+        Block held = inventory.selectedBlock();
+        boolean canEat = mode.isSurvival()
+                && !stats.isDead()
+                && !uiOpen()
+                && engine.controller().isEnabled()
+                && blocks.isFood(held)
+                && stats.food() < PlayerStats.MAX_FOOD
+                && Gdx.input.isButtonPressed(Input.Buttons.RIGHT);
+
+        if (!canEat) {
+            eatTimer = 0f;
+            return;
+        }
+        eatTimer += delta;
+        if (eatTimer < EAT_TIME) {
+            return;
+        }
+        eatTimer = 0f;
+        stats.eat(blocks.foodValue(held));
+        inventory.consumeSelected();
+        console.log("Da an mot qua " + held.name());
     }
 
     /**
@@ -253,8 +403,8 @@ public final class PlaySession extends InputAdapter implements Disposable, Playe
             return null;
         }
         Block wanted = alternate ? blocks.torch : inventory.selectedBlock();
-        if (wanted == null) {
-            return null;
+        if (wanted == null || blocks.isFood(wanted)) {
+            return null;  // do an thi de an, khong dat xuong dat duoc
         }
         if (mode.isCreative()) {
             return wanted;
@@ -371,14 +521,41 @@ public final class PlaySession extends InputAdapter implements Disposable, Playe
     @Override
     public boolean touchDown(int screenX, int screenY, int pointer, int button) {
         if (stats.isDead()) {
+            // Dang chet thi ca man hinh chi con mot cho bam duoc: o HOI SINH.
+            if (hud.respawnButtonHit(screenX, Gdx.graphics.getHeight() - screenY)) {
+                respawn();
+            }
             return true;
         }
         if (inventoryScreen.isOpen()) {
             int height = Gdx.graphics.getHeight();
-            inventoryScreen.click(screenX, height - screenY, Gdx.graphics.getWidth(), height, mode);
+            boolean shift = Gdx.input.isKeyPressed(Input.Keys.SHIFT_LEFT)
+                    || Gdx.input.isKeyPressed(Input.Keys.SHIFT_RIGHT);
+            inventoryScreen.touchDown(screenX, height - screenY, Gdx.graphics.getWidth(), height,
+                    mode, button == Input.Buttons.RIGHT, shift);
             return true;
         }
         return console.isOpen();
+    }
+
+    /** Keo chuot trong tui do: ghi lai cac o di qua de chia deu chong do. */
+    @Override
+    public boolean touchDragged(int screenX, int screenY, int pointer) {
+        if (!inventoryScreen.isOpen()) {
+            return uiOpen() || stats.isDead();
+        }
+        int height = Gdx.graphics.getHeight();
+        inventoryScreen.touchDragged(screenX, height - screenY, Gdx.graphics.getWidth(), height, mode);
+        return true;
+    }
+
+    @Override
+    public boolean touchUp(int screenX, int screenY, int pointer, int button) {
+        if (!inventoryScreen.isOpen()) {
+            return uiOpen() || stats.isDead();
+        }
+        inventoryScreen.touchUp();
+        return true;
     }
 
     @Override

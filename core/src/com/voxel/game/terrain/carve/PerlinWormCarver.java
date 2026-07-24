@@ -26,6 +26,14 @@ public final class PerlinWormCarver implements Carver {
     private static final int SPAWN_RARITY = 5;
     /** So lan mot duong ham duoc phep de nhanh con. */
     private static final int MAX_BRANCH_DEPTH = 2;
+    /**
+     * Giun khong duoc dao cao hon muc nay (tuyet doi). De cao gan bang mat dat (seaLevel 48,
+     * mat dat thuong 54-60) de duong ham co the boi len sat be mat - viec giu mai hang day
+     * bao nhieu la do {@link SurfaceGuard} lo, nen cho nao duoc phep thi ham tro mieng ra
+     * thanh cua hang, cho khong duoc thi tu dong dung lai duoi long dat.
+     */
+    private static final int MAX_WORM_Y = 54;
+    private static final int MIN_WORM_Y = 7;
 
     private final TerrainNoise noise;
     private final Blocks blocks;
@@ -39,7 +47,7 @@ public final class PerlinWormCarver implements Carver {
 
     @Override
     public void carve(ChunkWriter writer, int chunkX, int chunkZ, int chunkSize, int worldHeight) {
-        CarveScope scope = new CarveScope(writer, blocks,
+        CarveScope scope = new CarveScope(writer, blocks, SurfaceGuard.withEntrances(noise),
                 writer.originX(), writer.originZ(), chunkSize, worldHeight);
 
         for (int offsetX = -CHUNK_RADIUS; offsetX <= CHUNK_RADIUS; offsetX++) {
@@ -59,10 +67,18 @@ public final class PerlinWormCarver implements Carver {
         for (int i = 0; i < tunnels; i++) {
             double startX = sourceChunkX * chunkSize + random.nextInt(chunkSize);
             double startZ = sourceChunkZ * chunkSize + random.nextInt(chunkSize);
-            double startY = 9 + random.nextInt(44);
+
+            // Phan lon duong ham chay sau trong long dat. Mot phan tu la "ham noi": bat dau
+            // cao va cham cham boi len, nen khi di qua vung cho phep no tro mieng ra suon doi.
+            boolean climber = random.nextInt(4) == 0;
+            double startY = climber
+                    ? 36 + random.nextInt(14)
+                    : MIN_WORM_Y + 2 + random.nextInt(30);
 
             double yaw = random.nextDouble() * Math.PI * 2.0;
-            double pitch = (random.nextDouble() - 0.5) * 0.4;
+            double pitch = climber
+                    ? 0.10 + random.nextDouble() * 0.15
+                    : (random.nextDouble() - 0.5) * 0.4;
             double radius = 1.9 + random.nextDouble() * 1.9;
             int steps = 70 + random.nextInt(110);
 
@@ -107,12 +123,12 @@ public final class PerlinWormCarver implements Carver {
             cursorZ += Math.sin(heading) * Math.cos(climb);
             cursorY += Math.sin(climb) * 0.9;
 
-            if (cursorY < 7.0) {
-                cursorY = 7.0;
+            if (cursorY < MIN_WORM_Y) {
+                cursorY = MIN_WORM_Y;
                 climb = Math.abs(climb);
             }
-            if (cursorY > 86.0) {
-                cursorY = 86.0;
+            if (cursorY > MAX_WORM_Y) {
+                cursorY = MAX_WORM_Y;
                 climb = -Math.abs(climb);
             }
 

@@ -18,6 +18,7 @@ import com.voxel.engine.input.BlockInteraction;
 import com.voxel.engine.physics.VoxelRaycaster;
 import com.voxel.engine.world.World;
 import com.voxel.game.net.Edit;
+import com.voxel.game.net.Hurt;
 import com.voxel.game.net.PlayerState;
 import com.voxel.game.net.RemotePlayerRenderer;
 import com.voxel.game.net.Session;
@@ -127,8 +128,8 @@ public final class GameScreen extends ScreenAdapter implements BlockInteraction 
         crosshair = new Texture(Gdx.files.internal("data/crosshair.png"));
 
         play = new PlaySession(engine, blocks, atlas, font);
-        // Khoi phuc che do choi da luu (0 = sinh ton, 1 = sang tao).
-        play.setMode(saved.mode == 0 ? GameMode.SURVIVAL : GameMode.CREATIVE);
+        // Luon vao bang che do SINH TON, tui do trong - muon xay thoai mai thi go /gamemode 1.
+        play.setMode(GameMode.SURVIVAL);
         // Giao dien duoc hoi truoc: khi tui do hay khung chat dang mo thi no giu lai
         // phim bam, khong cho lot xuong phan dieu khien nhan vat.
         Gdx.input.setInputProcessor(new InputMultiplexer(play, engine.controller()));
@@ -137,6 +138,7 @@ public final class GameScreen extends ScreenAdapter implements BlockInteraction 
     @Override
     public void render(float delta) {
         applyRemoteEdits();
+        applyIncomingHits();
         engine.render(delta);
         // Ve avatar nguoi choi khac SAU khi engine ve xong the gioi (dung chung camera va bo dem do sau).
         worldClient.players().advance(delta);
@@ -156,6 +158,14 @@ public final class GameScreen extends ScreenAdapter implements BlockInteraction 
         }
     }
 
+    /** Lay het cu danh nguoi khac vua giang vao minh va tru mau (chay tren luong game). */
+    private void applyIncomingHits() {
+        Hurt hurt;
+        while ((hurt = worldClient.pollHurt()) != null) {
+            play.hurtBy(hurt.from, hurt.damage);
+        }
+    }
+
     /**
      * Gui vi tri + huong nhin cua nguoi choi nay len server, toi da {@link #MOVE_SEND_INTERVAL}
      * mot lan VA chi khi that su co thay doi - dung yen thi khong gui gi de do ton mang.
@@ -168,15 +178,17 @@ public final class GameScreen extends ScreenAdapter implements BlockInteraction 
         moveTimer = 0f;
 
         Vector3 pos = engine.playerPosition();
+        // Gui vi tri BAN CHAN: may khac dung so nay de dat nhan vat dung tren mat dat.
+        float feetY = engine.playerFeetY();
         float yaw = yaw();
         float pitch = pitch();
-        if (sentOnce && !movedSince(pos, yaw, pitch)) {
+        if (sentOnce && !movedSince(pos.x, feetY, pos.z, yaw, pitch)) {
             return;
         }
 
-        worldClient.sendMove(pos.x, pos.y, pos.z, yaw, pitch);
+        worldClient.sendMove(pos.x, feetY, pos.z, yaw, pitch);
         lastSentX = pos.x;
-        lastSentY = pos.y;
+        lastSentY = feetY;
         lastSentZ = pos.z;
         lastSentYaw = yaw;
         lastSentPitch = pitch;
@@ -184,10 +196,10 @@ public final class GameScreen extends ScreenAdapter implements BlockInteraction 
     }
 
     /** True neu vi tri hoac huong nhin da lech qua {@link #MOVE_EPSILON} so voi lan gui truoc. */
-    private boolean movedSince(Vector3 pos, float yaw, float pitch) {
-        return Math.abs(pos.x - lastSentX) > MOVE_EPSILON
-                || Math.abs(pos.y - lastSentY) > MOVE_EPSILON
-                || Math.abs(pos.z - lastSentZ) > MOVE_EPSILON
+    private boolean movedSince(float x, float y, float z, float yaw, float pitch) {
+        return Math.abs(x - lastSentX) > MOVE_EPSILON
+                || Math.abs(y - lastSentY) > MOVE_EPSILON
+                || Math.abs(z - lastSentZ) > MOVE_EPSILON
                 || Math.abs(yaw - lastSentYaw) > MOVE_EPSILON
                 || Math.abs(pitch - lastSentPitch) > MOVE_EPSILON;
     }
@@ -262,19 +274,19 @@ public final class GameScreen extends ScreenAdapter implements BlockInteraction 
                 "Chunk  " + Math.floorDiv(blockX, 16) + " " + Math.floorDiv(blockZ, 16),
                 "Huong  " + facing() + String.format("  (%.1f / %.1f)", yaw(), pitch()),
                 "Biome  " + biomes.pick(blockX, blockZ),
+                "Gio  " + engine.dayCycle().clockLabel()
+                        + (engine.dayCycle().isNight() ? "  (dem - coi chung zombie)" : "  (ngay)"),
                 "Trang thai  " + engine.movementLabel() + "   Goc nhin  " + engine.viewMode().label()
         };
         String[] right = {
                 "Java " + System.getProperty("java.version"),
-                "Bo nho  " + usedMb + " / " + maxMb + " MB",
-                "Man hinh  " + width + "x" + height,
-                "Che do  " + play.mode().label(),
+                "Memory  " + usedMb + " / " + maxMb + " MB",
+                "Screen  " + width + "x" + height,
+                "Mode  " + play.mode().label(),
                 "",
-                "F3 an bang nay      F5 doi goc nhin",
-                "E tui do            / go lenh",
-                "1-9 hoac lan chuot doi khoi",
-                "chuot trai pha      chuot phai dat",
-                "CTRL+phai dat duoc  Q thoat"
+                "F3 press this      F5 change view",
+                "E open inventory    / open command",
+                "T chat    ESC show cursor",
         };
 
         drawDebugColumn(left, 6f, height - 6f, false, width);
@@ -301,15 +313,15 @@ public final class GameScreen extends ScreenAdapter implements BlockInteraction 
     private String facing() {
         float angle = (yaw() % 360f + 360f) % 360f;
         if (angle >= 315f || angle < 45f) {
-            return "nam (+Z)";
+            return "South (+Z)";
         }
         if (angle < 135f) {
-            return "tay (-X)";
+            return "West (-X)";
         }
         if (angle < 225f) {
-            return "bac (-Z)";
+            return "North (-Z)";
         }
-        return "dong (+X)";
+        return "East (+X)";
     }
 
     private float yaw() {
@@ -318,6 +330,19 @@ public final class GameScreen extends ScreenAdapter implements BlockInteraction 
 
     private float pitch() {
         return (float) Math.toDegrees(Math.asin(-camera.direction.y));
+    }
+
+    /**
+     * Chuot trai: uu tien danh quai vat / nguoi choi khac dang o trong tam ngam. Danh trung thi
+     * bao ca phong biet de avatar cua minh ben may ho cung quo tay theo.
+     */
+    @Override
+    public boolean onAttack(Vector3 origin, Vector3 direction, float reach) {
+        boolean hitSomething = play.attack(origin, direction, reach, worldClient.players().all());
+        if (hitSomething) {
+            worldClient.sendSwing();
+        }
+        return hitSomething;
     }
 
     @Override

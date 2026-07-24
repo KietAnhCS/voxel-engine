@@ -114,6 +114,80 @@ public final class Inventory {
         return false;
     }
 
+    /**
+     * Nhet {@code amount} khoi loai nay vao tui: uu tien don vao chong cung loai con cho,
+     * het cho moi mo o trong.
+     *
+     * @return so khoi KHONG nhet duoc vi tui da day
+     */
+    public int addStack(Block block, int amount) {
+        return moveInto(block, amount, 0, SIZE);
+    }
+
+    /**
+     * Shift + bam chuot: chuyen nhanh ca chong do sang khu vuc con lai - do o thanh nhanh
+     * thi bay len kho chua, do trong kho thi rot xuong thanh nhanh. Dung y nhu Minecraft.
+     */
+    public void quickMove(int index) {
+        ItemStack stack = slots[index];
+        if (stack == null || stack.isEmpty()) {
+            return;
+        }
+        boolean fromHotbar = index < HOTBAR_SIZE;
+        int start = fromHotbar ? HOTBAR_SIZE : 0;
+        int end = fromHotbar ? SIZE : HOTBAR_SIZE;
+
+        int leftOver = moveInto(stack.block(), stack.count(), start, end);
+        slots[index] = leftOver > 0 ? new ItemStack(stack.block(), leftOver) : null;
+    }
+
+    /** Don do vao cac o trong khoang [start, end); tra ve so con thua khong nhet duoc. */
+    private int moveInto(Block block, int amount, int start, int end) {
+        for (int i = start; i < end && amount > 0; i++) {
+            ItemStack target = slots[i];
+            if (target != null && target.isSameBlock(block)) {
+                amount = target.add(amount);
+            }
+        }
+        for (int i = start; i < end && amount > 0; i++) {
+            if (slots[i] == null) {
+                int put = Math.min(amount, ItemStack.MAX_COUNT);
+                slots[i] = new ItemStack(block, put);
+                amount -= put;
+            }
+        }
+        return amount;
+    }
+
+    /**
+     * Bam chuot PHAI vao mot o: tay khong thi boc len MOT NUA chong, dang cam do thi
+     * tha xuong MOT cai - giong Minecraft.
+     */
+    public void clickSlotRight(int index) {
+        ItemStack inSlot = slots[index];
+        if (carried == null) {
+            if (inSlot == null) {
+                return;
+            }
+            int half = (inSlot.count() + 1) / 2;
+            int left = inSlot.count() - half;
+            carried = new ItemStack(inSlot.block(), half);
+            slots[index] = left > 0 ? new ItemStack(inSlot.block(), left) : null;
+            return;
+        }
+        if (inSlot == null) {
+            slots[index] = new ItemStack(carried.block(), 1);
+        } else if (inSlot.isSameBlock(carried.block()) && inSlot.room() > 0) {
+            inSlot.add(1);
+        } else {
+            return;
+        }
+        carried.shrink();
+        if (carried.isEmpty()) {
+            carried = null;
+        }
+    }
+
     public ItemStack carried() {
         return carried;
     }
@@ -140,6 +214,40 @@ public final class Inventory {
         }
         slots[index] = carried;
         carried = inSlot;
+    }
+
+    /**
+     * BAM DUP chuot trai: hut het khoi CUNG LOAI dang nam rai rac trong tui vao chong tren
+     * tay, toi da 64 - dung nhu Minecraft. Uu tien nhung chong con dang do dang truoc de tui
+     * do gon lai, het roi moi dung toi chong day.
+     */
+    public void collectIntoCarried() {
+        if (carried == null || carried.isEmpty()) {
+            return;
+        }
+        gather(false);
+        gather(true);
+    }
+
+    /** Mot luot hut do vao chong dang cam. {@code full} = co dung toi ca nhung chong da day khong. */
+    private void gather(boolean full) {
+        for (int i = 0; i < SIZE && carried.room() > 0; i++) {
+            ItemStack stack = slots[i];
+            if (stack == null || !stack.isSameBlock(carried.block())) {
+                continue;
+            }
+            if (!full && stack.count() >= ItemStack.MAX_COUNT) {
+                continue;
+            }
+            int moved = Math.min(stack.count(), carried.room());
+            carried.add(moved);
+            for (int n = 0; n < moved; n++) {
+                stack.shrink();
+            }
+            if (stack.isEmpty()) {
+                slots[i] = null;
+            }
+        }
     }
 
     /** Throws away the carried item (pressing ESC or closing the bag while holding it). */

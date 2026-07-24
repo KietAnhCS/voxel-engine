@@ -15,6 +15,7 @@ uniform vec4 u_cameraPosition;
 
 uniform float u_time;
 
+uniform float u_daylight;
 uniform float u_fogstr;
 varying float v_fogstr;
 
@@ -36,7 +37,7 @@ void main()
 
     vec3 randomPos;
 
-    if(v_texCoords0.x == 0.375 && v_texCoords0.y == 0.0 && a_color.a == 0.0){
+    if(v_texCoords0.x == 0.375 && v_texCoords0.y == 0.0 && a_color.a < 0.5){
             dx = 0.1*sin( mod(a_position.x,3.5)+u_time );
             dz = 0.25*cos( mod(a_position.x,3.5)+u_time );
     }else{
@@ -63,6 +64,11 @@ void main()
     v_fog = min(fog, 1.0);
 
     baselight = -0.25;
-    blocklight = a_color.rgb;
+
+    // Kenh alpha cua mau dinh giu ti le "anh sang nay den tu bau troi" (xem FaceLighting).
+    // Troi lan thi chi phan do bi lam toi, con quang duoc/den thi giu nguyen.
+    // Phai bo phan bu 0.25 ra TRUOC khi nhan roi cong lai, neu khong troi toi se ra so am.
+    float skyShare = fract(a_color.a * 2.0);
+    blocklight = (a_color.rgb + baselight) * mix(1.0, u_daylight, skyShare) - baselight;
 
 }

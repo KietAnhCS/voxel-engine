@@ -178,6 +178,31 @@ public final class ChunkMesher implements BlockView, QuadEmitter {
     }
 
     @Override
+    public int skyLightAt(int x, int y, int z) {
+        if (y >= config.worldHeight()) {
+            return Block.MAX_LIGHT;
+        }
+        if (y < 0) {
+            return 0;
+        }
+        if (storage.contains(x, y, z)) {
+            return storage.skyLight(storage.index(x, y, z));
+        }
+        return world.skyLightAt(originX + x, y, originZ + z);
+    }
+
+    @Override
+    public int blockLightAt(int x, int y, int z) {
+        if (y < 0 || y >= config.worldHeight()) {
+            return 0;
+        }
+        if (storage.contains(x, y, z)) {
+            return storage.blockLight(storage.index(x, y, z));
+        }
+        return world.blockLightAt(originX + x, y, originZ + z);
+    }
+
+    @Override
     public Color[] cornerBuffer() {
         return corners;
     }

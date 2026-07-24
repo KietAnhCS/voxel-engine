@@ -6,6 +6,7 @@ import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.badlogic.gdx.math.Rectangle;
 
 /**
  * Thanh trang thai duoi day man hinh.
@@ -38,6 +39,10 @@ public final class Hud {
     private static final float XP_BAR_HEIGHT = 5f;
     /** Toc do khung chon truot toi o moi (cang lon cang bam sat, cang nho cang muot). */
     private static final float SELECT_SLIDE_SPEED = 18f;
+    /** Kich thuoc o hoi sinh tren man hinh chet (diem anh giao dien). */
+    private static final float BUTTON_W = 90f;
+    private static final float BUTTON_H = 20f;
+    private static final String RESPAWN_TEXT = "HOI SINH";
 
     private final Inventory inventory;
     private final PlayerStats stats;
@@ -46,6 +51,8 @@ public final class Hud {
     private final MinecraftUi ui;
     private final BitmapFont font;
     private final GlyphLayout layout = new GlyphLayout();
+    /** Vung o "HOI SINH", do lai moi khung hinh khi dang chet. */
+    private final Rectangle respawnButton = new Rectangle();
     /** Vi tri o dang chon dang duoc ve, truot dan toi o that de nhin muot. -1 = chua dat. */
     private float animatedSlot = -1f;
 
@@ -284,11 +291,43 @@ public final class Hud {
         }
     }
 
+    /**
+     * Man hinh chet: nen do mo, dong chu, va mot O HOI SINH bam chuot vao duoc.
+     *
+     * O nay duoc do lai moi khung hinh vao {@link #respawnButton} de {@code PlaySession}
+     * biet nguoi choi co bam trung hay khong - ve va bat chuot dung chung mot hinh chu nhat
+     * nen khong bao gio lech nhau.
+     */
     private void drawDeathScreen(SpriteBatch batch, int width, int height) {
         ui.rect(batch, Color.RED, 0.45f, 0f, 0f, width, height);
         batch.setColor(Color.WHITE);
-        center(batch, "BAN DA CHET!", width, height * 0.5f + 40f);
-        center(batch, "Bam R de hoi sinh", width, height * 0.5f);
+        center(batch, "BAN DA CHET!", width, height * 0.5f + px(30f));
+
+        float buttonW = px(BUTTON_W);
+        float buttonH = px(BUTTON_H);
+        respawnButton.set((width - buttonW) * 0.5f, height * 0.5f - px(24f), buttonW, buttonH);
+
+        // Con tro dang di qua nut thi nut sang len mot chut cho biet bam duoc.
+        boolean hover = respawnButton.contains(Gdx.input.getX(), height - Gdx.input.getY());
+        ui.rect(batch, Color.BLACK, respawnButton.x - px(1f), respawnButton.y - px(1f),
+                respawnButton.width + px(2f), respawnButton.height + px(2f));
+        ui.rect(batch, hover ? MinecraftUi.PANEL_LIGHT : MinecraftUi.PANEL_BG,
+                respawnButton.x, respawnButton.y, respawnButton.width, respawnButton.height);
+        batch.setColor(hover ? MinecraftUi.ACCENT_EDGE : MinecraftUi.BAR_EDGE);
+        ui.frame(batch, respawnButton.x, respawnButton.y,
+                respawnButton.width, respawnButton.height, px(1f));
+        batch.setColor(Color.WHITE);
+
+        layout.setText(font, RESPAWN_TEXT);
+        font.setColor(Color.WHITE);
+        font.draw(batch, RESPAWN_TEXT,
+                respawnButton.x + (respawnButton.width - layout.width) * 0.5f,
+                respawnButton.y + (respawnButton.height + layout.height) * 0.5f);
+    }
+
+    /** True neu cu bam roi vao o hoi sinh (toa do y da doi ve he giao dien). */
+    public boolean respawnButtonHit(float mouseX, float mouseY) {
+        return stats.isDead() && respawnButton.contains(mouseX, mouseY);
     }
 
     private void center(SpriteBatch batch, String text, int width, float y) {

@@ -25,6 +25,10 @@ public final class MonsterManager implements Disposable {
     private static final float MIN_SPAWN_DIST = 12f;
     private static final float MAX_SPAWN_DIST = 22f;
     private static final float DESPAWN_DIST = 48f;
+    /** Sang hon muc nay (0..15) thi quai khong sinh ra nua - dat duoc la yen than. */
+    private static final int MAX_SPAWN_LIGHT = 7;
+    /** Anh sang troi tu muc nay tro len giua ban ngay la quai chay nang. */
+    private static final int SUNBURN_LIGHT = 12;
 
     private final World world;
     private final PlayerTarget player;
@@ -33,6 +37,8 @@ public final class MonsterManager implements Disposable {
     private final List<Monster> monsters = new ArrayList<Monster>();
     private final Random random = new Random();
     private float spawnTimer;
+    /** So con vua bi nguoi choi ha, cho {@code PlaySession} lay ra de cong kinh nghiem. */
+    private int kills;
 
     public MonsterManager(World world, PlayerTarget player) {
         this.world = world;
@@ -40,8 +46,12 @@ public final class MonsterManager implements Disposable {
         this.context = new MonsterContext(world, new AStarPathFinder(world), player);
     }
 
-    /** Chay mot khung hinh he quai vat. Ngoai sinh ton thi khong co con nao. */
-    public void update(float delta, boolean survival) {
+    /**
+     * Chay mot khung hinh he quai vat. Ngoai sinh ton thi khong co con nao.
+     *
+     * @param night dang la ban dem (mat troi da khuat) - luc do quai moi bo ra ngoai troi
+     */
+    public void update(float delta, boolean survival, boolean night) {
         if (!survival) {
             monsters.clear();
             spawnTimer = 0f;
@@ -51,11 +61,18 @@ public final class MonsterManager implements Disposable {
         spawnTimer += delta;
         if (spawnTimer >= SPAWN_INTERVAL) {
             spawnTimer = 0f;
-            trySpawn();
+            trySpawn(night);
         }
 
         for (Iterator<Monster> it = monsters.iterator(); it.hasNext(); ) {
             Monster monster = it.next();
+            // Het mau thi bien mat; qua xa (nguoi choi da di rat xa) cung bo di cho do don.
+            if (monster.isDead()) {
+                it.remove();
+                kills++;
+                continue;
+            }
+            burnInSunlight(monster, delta, night);
             monster.update(context, delta);
             if (MonsterContext.horizontalDist(monster.position(), player.position()) > DESPAWN_DIST) {
                 it.remove();
@@ -63,8 +80,31 @@ public final class MonsterManager implements Disposable {
         }
     }
 
-    /** Thu sinh mot con quai o vong tron quanh nguoi choi, tren mat dat trong. */
-    private void trySpawn() {
+    /** Danh sach quai dang song - de ngam danh va de ve. */
+    public List<Monster> alive() {
+        return monsters;
+    }
+
+    /** Lay ra so quai vua ha ke tu lan hoi truoc (doc xong thi dat lai ve 0). */
+    public int takeKills() {
+        int taken = kills;
+        kills = 0;
+        return taken;
+    }
+
+    /**
+     * Thu sinh mot con quai o vong tron quanh nguoi choi, tren mat dat trong.
+     *
+     * <p>Luat sang toi lay theo Minecraft:
+     * <ul>
+     *   <li>Cho nao duoc duoc/den chieu sang qua {@link #MAX_SPAWN_LIGHT} thi TUYET DOI khong sinh -
+     *       cam duoc quanh nha la ngu yen.</li>
+     *   <li>Ban ngay ngoai troi cung khong sinh; nhung trong hang toi (khong thay bau troi)
+     *       thi gio nao cung sinh duoc.</li>
+     *   <li>Con lai: cho cang sang thi kha nang sinh cang thap.</li>
+     * </ul>
+     */
+    private void trySpawn(boolean night) {
         if (monsters.size() >= MAX_MONSTERS) {
             return;
         }
@@ -75,8 +115,38 @@ public final class MonsterManager implements Disposable {
         int z = (int) Math.floor(p.z + MathUtils.sin(angle) * dist);
 
         int y = groundHeight(x, z);
-        if (y > 0) {
-            monsters.add(new Monster(x + 0.5f, y, z + 0.5f));
+        if (y <= 0) {
+            return;
+        }
+
+        int torchLight = world.blockLightAt(x, y, z);
+        if (torchLight > MAX_SPAWN_LIGHT) {
+            return;
+        }
+        int skyLight = world.skyLightAt(x, y, z);
+        if (!night && skyLight > MAX_SPAWN_LIGHT) {
+            return;
+        }
+
+        // Ban dem anh sang troi khong con tinh; chi con quang duoc lam giam kha nang sinh.
+        int light = Math.max(torchLight, night ? 0 : skyLight);
+        if (random.nextInt(MAX_SPAWN_LIGHT + 1) < light) {
+            return;
+        }
+        monsters.add(new Monster(x + 0.5f, y, z + 0.5f));
+    }
+
+    /** Ban ngay ma dung phoi nang giua troi thi quai chay dan roi boc hoi. */
+    private void burnInSunlight(Monster monster, float delta, boolean night) {
+        if (night) {
+            return;
+        }
+        Vector3 at = monster.position();
+        int x = (int) Math.floor(at.x);
+        int y = (int) Math.floor(at.y);
+        int z = (int) Math.floor(at.z);
+        if (world.skyLightAt(x, y, z) >= SUNBURN_LIGHT) {
+            monster.burn(delta);
         }
     }
 

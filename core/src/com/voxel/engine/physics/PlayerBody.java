@@ -22,6 +22,8 @@ public final class PlayerBody {
     private final Matrix4 transform = new Matrix4();
 
     private boolean submerged;
+    /** Chan con dam trong nuoc (du than nguoi da nho len khoi mat nuoc). */
+    private boolean feetInWater;
 
     PlayerBody(btDiscreteDynamicsWorld dynamicsWorld, Vector3 spawn) {
         this.dynamicsWorld = dynamicsWorld;
@@ -80,6 +82,15 @@ public final class PlayerBody {
 
     public void setSubmerged(boolean submerged) {
         this.submerged = submerged;
+    }
+
+    /** True khi ban chan con o trong nuoc - luc do van nhun len duoc de treo len bo. */
+    public boolean isFeetInWater() {
+        return feetInWater;
+    }
+
+    public void setFeetInWater(boolean feetInWater) {
+        this.feetInWater = feetInWater;
     }
 
     void dispose() {

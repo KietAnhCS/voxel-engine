@@ -24,8 +24,12 @@ import java.util.concurrent.ConcurrentHashMap;
  * Tin nhan la JSON co truong "t" (type):
  *   - Nhan tu game:  {"t":"move", x,y,z,yaw,pitch}   ->  phat lai cho nguoi khac kem ten
  *                    {"t":"edit", x,y,z,b}            ->  luu vao the gioi chung + phat lai
+ *                    {"t":"hit",  name, dmg}          ->  danh trung ai do: bao RIENG nguoi do
+ *                    {"t":"swing"}                    ->  vua quo tay: phat lai cho nguoi khac
  *   - Gui toi game:  {"t":"player", name, x,y,z,yaw,pitch}  ->  ai do di chuyen
  *                    {"t":"edit",   name, x,y,z,b}           ->  ai do dat/pha khoi
+ *                    {"t":"swing",  name}                    ->  ai do quo tay
+ *                    {"t":"hurt",   from, dmg}               ->  MINH vua bi danh mat mau
  *                    {"t":"leave",  name}                    ->  ai do thoat
  *
  * Toa do o khoi va vi tri nguoi choi la hai he KHAC nhau: "edit" dung so nguyen (o khoi),
@@ -81,6 +85,24 @@ public class WorldSocketHandler extends TextWebSocketHandler {
             world.applyEdit(me.code, x, y, z, b);
             broadcast(session, write(Map.of("t", "edit", "name", me.username,
                     "x", x, "y", y, "z", z, "b", b)));
+        } else if ("hit".equals(type)) {
+            // Danh nhau: mau nam tren may cua NGUOI BI DANH, nen chi chuyen tin cho rieng ho.
+            String victim = node.path("name").asText();
+            int damage = node.path("dmg").asInt();
+            sendToPlayer(me.code, victim,
+                    write(Map.of("t", "hurt", "from", me.username, "dmg", damage)));
+        } else if ("swing".equals(type)) {
+            broadcast(session, write(Map.of("t", "swing", "name", me.username)));
+        }
+    }
+
+    /** Gui tin cho DUNG MOT nguoi trong phong, tim theo ten tai khoan. */
+    private void sendToPlayer(String code, String username, String payload) {
+        for (Presence p : online.values()) {
+            if (p.code.equals(code) && p.username.equals(username)) {
+                send(p.session, payload);
+                return;
+            }
         }
     }
 

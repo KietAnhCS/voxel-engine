@@ -35,8 +35,14 @@ public final class PlayerMesh {
 
     /** Skin side length in pixels; one pixel is therefore 1/64 of the texture. */
     private static final float TEX = 64f;
-    /** How much bigger the overlay boxes are than the base, in half a skin pixel. */
-    private static final float OVERLAY_INFLATE = 0.5f;
+    /**
+     * Lop ao khoac cua than va tay chan phong to hon lop nen bay nhieu (nua diem anh skin).
+     * Phai NHO: phong to qua thi hai chan dinh vao nhau va tay dinh vao than, nhin thanh
+     * mot cuc lien khoi - dung 0.25 nhu Minecraft de tung tay tung chan van tach bach.
+     */
+    private static final float LIMB_INFLATE = 0.25f;
+    /** Rieng cai mu tren dau duoc phong to gap doi, cung giong Minecraft. */
+    private static final float HAT_INFLATE = 0.5f;
 
     /**
      * The four corners of each face, as +/-1 signs on (x, y, z) measured from the box
@@ -78,14 +84,17 @@ public final class PlayerMesh {
                 IntAttribute.createCullFace(GL20.GL_NONE),
                 FloatAttribute.createAlphaTest(0.5f));
 
+        // Toa do tam (cx, cy) tinh bang diem anh skin, lay diem giua hai ban chan lam goc:
+        //   hai CHAN cao 0..12, than va hai TAY cao 12..24, DAU cao 24..32.
+        //   Chan trai lech sang -x, chan phai +x; tay trai -x ngoai than, tay phai +x.
         builder.begin();
-        //   node        base uv   centre         size       overlay uv
-        limb(builder, attributes, base, overlay, unit, "legLeft",  16, 48,  -2,  6, 0,  4, 12, 4,  0, 48);
-        limb(builder, attributes, base, overlay, unit, "legRight",  0, 16,   2,  6, 0,  4, 12, 4,  0, 32);
-        limb(builder, attributes, base, overlay, unit, "body",     16, 16,   0, 18, 0,  8, 12, 4, 16, 32);
-        limb(builder, attributes, base, overlay, unit, "armLeft",  32, 48,  -6, 18, 0,  4, 12, 4, 48, 48);
-        limb(builder, attributes, base, overlay, unit, "armRight", 40, 16,   6, 18, 0,  4, 12, 4, 40, 32);
-        limb(builder, attributes, base, overlay, unit, "head",      0,  0,   0, 28, 0,  8,  8, 8, 32,  0);
+        //   node        base uv   centre         size       overlay uv   phong to
+        limb(builder, attributes, base, overlay, unit, "legLeft",  16, 48,  -2,  6, 0,  4, 12, 4,  0, 48, LIMB_INFLATE);
+        limb(builder, attributes, base, overlay, unit, "legRight",  0, 16,   2,  6, 0,  4, 12, 4,  0, 32, LIMB_INFLATE);
+        limb(builder, attributes, base, overlay, unit, "body",     16, 16,   0, 18, 0,  8, 12, 4, 16, 32, LIMB_INFLATE);
+        limb(builder, attributes, base, overlay, unit, "armLeft",  32, 48,  -6, 18, 0,  4, 12, 4, 48, 48, LIMB_INFLATE);
+        limb(builder, attributes, base, overlay, unit, "armRight", 40, 16,   6, 18, 0,  4, 12, 4, 40, 32, LIMB_INFLATE);
+        limb(builder, attributes, base, overlay, unit, "head",      0,  0,   0, 28, 0,  8,  8, 8, 32,  0, HAT_INFLATE);
         return builder.end();
     }
 
@@ -93,12 +102,12 @@ public final class PlayerMesh {
     private static void limb(ModelBuilder builder, long attributes, Material base, Material overlay,
                              float unit, String name, int ox, int oy,
                              float cx, float cy, float cz, int w, int h, int d,
-                             int overlayOx, int overlayOy) {
+                             int overlayOx, int overlayOy, float inflate) {
         builder.node().id = name;
         box(builder.part(name, GL20.GL_TRIANGLES, attributes, base),
                 unit, ox, oy, cx, cy, cz, w, h, d, 0f);
         box(builder.part(name + "Overlay", GL20.GL_TRIANGLES, attributes, overlay),
-                unit, overlayOx, overlayOy, cx, cy, cz, w, h, d, OVERLAY_INFLATE);
+                unit, overlayOx, overlayOy, cx, cy, cz, w, h, d, inflate);
     }
 
     /**

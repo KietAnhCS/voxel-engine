@@ -18,6 +18,32 @@ task run(type: JavaExec) {
     ]
 }
 
+/**
+ * Ghi san dong tham so cho java.exe vao build/launch-args.txt (kieu "@argfile" cua Java 9+).
+ *
+ * Nho task nay ma choi.bat khong phai chep tay duong dan tung file .jar trong kho Gradle -
+ * doi phien ban thu vien hay doi may khac la file nay tu sinh lai cho dung.
+ *
+ * Duong dan viet bang dau / vi trong @argfile thi dau \ bi hieu la ky tu thoat.
+ */
+task writeLaunchArgs {
+    dependsOn classes, ":core:jar"
+    def target = file("$buildDir/launch-args.txt")
+    outputs.file target
+    doLast {
+        def classpath = sourceSets.main.runtimeClasspath.files
+                .collect { it.absolutePath.replace('\\', '/') }
+                .join(File.pathSeparator)
+        target.parentFile.mkdirs()
+        target.text = [
+                "-cp \"${classpath}\"",
+                "--add-opens java.base/java.nio=ALL-UNNAMED",
+                "--add-opens java.base/sun.nio.ch=ALL-UNNAMED",
+                ""
+        ].join(System.lineSeparator())
+    }
+}
+
 // Repacks texturepacker/textures/*.png into assets/data/textureatlas.png
 task packTextures(type: JavaExec) {
     def packerDir = file("../texturepacker")
@@ -30,6 +56,14 @@ task packTextures(type: JavaExec) {
 task playProbe(type: JavaExec) {
     dependsOn classes
     mainClass = "com.voxel.game.tools.PlayProbe"
+    classpath = sourceSets.main.runtimeClasspath
+    ignoreExitValue = true
+}
+
+// Checks swimming / climbing out of water with the real physics (no graphics window needed).
+task physicsProbe(type: JavaExec) {
+    dependsOn classes
+    mainClass = "com.voxel.game.tools.PhysicsProbe"
     classpath = sourceSets.main.runtimeClasspath
     ignoreExitValue = true
 }

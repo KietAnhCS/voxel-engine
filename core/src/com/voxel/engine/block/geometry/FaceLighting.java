@@ -5,6 +5,18 @@ import com.voxel.engine.block.Block;
 import com.voxel.engine.block.BlockView;
 import com.voxel.engine.util.Direction;
 
+/**
+ * Tinh mau cho bon goc cua mot mat khoi: do sang, bong o goc (ambient occlusion) va sac
+ * mau cua khoi.
+ *
+ * <p>Kenh ALPHA khong dung de trong suot ma cho hai thong tin ma shader can:
+ * <pre>
+ *   alpha &lt; 0.5  : khoi dua theo gio (co, hoa) - shader lam no lac lu
+ *   phan le      : ANH SANG NAY DEN TU BAU TROI bao nhieu (0 = toan do duoc, 1 = toan do troi)
+ * </pre>
+ * Nho phan le do ma khi mat troi lan, shader chi lam toi phan anh sang troi va giu nguyen
+ * quang duoc/den - dung nhu Minecraft, khong phai bam lai luoi ca the gioi moi lan troi toi.
+ */
 public final class FaceLighting {
 
     private static final float[] LIGHT_CURVE = new float[Block.MAX_LIGHT + 1];
@@ -26,7 +38,7 @@ public final class FaceLighting {
         int ny = y + face.dy();
         int nz = z + face.dz();
 
-        float alpha = block.isWindAffected() ? 0f : 1f;
+        boolean windy = block.isWindAffected();
 
         for (int corner = 0; corner < 4; corner++) {
             int uSign = (corner == 1 || corner == 2) ? 1 : -1;
@@ -50,41 +62,68 @@ public final class FaceLighting {
 
             int occlusion = sideA && sideB ? 0 : 3 - (count(sideA) + count(sideB) + count(diagonal));
 
-            int lightSum = view.lightAt(nx, ny, nz);
+            // Lay rieng anh sang TROI va anh sang DUOC cua cac o quanh goc nay.
+            int skySum = view.skyLightAt(nx, ny, nz);
+            int torchSum = view.blockLightAt(nx, ny, nz);
             int lightCount = 1;
             if (!sideA) {
-                lightSum += view.lightAt(ax, ay, az);
+                skySum += view.skyLightAt(ax, ay, az);
+                torchSum += view.blockLightAt(ax, ay, az);
                 lightCount++;
             }
             if (!sideB) {
-                lightSum += view.lightAt(bx, by, bz);
+                skySum += view.skyLightAt(bx, by, bz);
+                torchSum += view.blockLightAt(bx, by, bz);
                 lightCount++;
             }
             if (!diagonal && !(sideA && sideB)) {
-                lightSum += view.lightAt(cx, cy, cz);
+                skySum += view.skyLightAt(cx, cy, cz);
+                torchSum += view.blockLightAt(cx, cy, cz);
                 lightCount++;
             }
 
-            int level = Math.min(Block.MAX_LIGHT, lightSum / lightCount);
+            int skyLevel = Math.min(Block.MAX_LIGHT, skySum / lightCount);
+            int torchLevel = Math.min(Block.MAX_LIGHT, torchSum / lightCount);
+            int level = Math.max(skyLevel, torchLevel);
             float brightness = LIGHT_CURVE[level] * OCCLUSION_CURVE[occlusion] * face.shade();
 
             out[corner].set(
                     tintBuffer.r * brightness + SHADER_BIAS,
                     tintBuffer.g * brightness + SHADER_BIAS,
                     tintBuffer.b * brightness + SHADER_BIAS,
-                    alpha);
+                    packSkyShare(skyShare(skyLevel, torchLevel), windy));
         }
     }
 
     public void flat(BlockView view, int x, int y, int z, Block block, float shade, Color out) {
         block.tint().apply(x, y, z, tintBuffer);
-        int level = Math.min(Block.MAX_LIGHT, view.lightAt(x, y, z));
+        int skyLevel = Math.min(Block.MAX_LIGHT, view.skyLightAt(x, y, z));
+        int torchLevel = Math.min(Block.MAX_LIGHT, view.blockLightAt(x, y, z));
+        int level = Math.max(skyLevel, torchLevel);
         float brightness = LIGHT_CURVE[level] * shade;
         out.set(
                 tintBuffer.r * brightness + SHADER_BIAS,
                 tintBuffer.g * brightness + SHADER_BIAS,
                 tintBuffer.b * brightness + SHADER_BIAS,
-                block.isWindAffected() ? 0f : 1f);
+                packSkyShare(skyShare(skyLevel, torchLevel), block.isWindAffected()));
+    }
+
+    /**
+     * Bao nhieu phan do sang o day la CUA BAU TROI (0..1).
+     *
+     * Cho nao duoc sang bang hoac hon anh sang troi thi tra 0 (troi toi cung khong anh
+     * huong), cho nao chi co anh sang troi thi tra 1 (troi toi la toi theo).
+     */
+    private static float skyShare(int skyLevel, int torchLevel) {
+        float sky = LIGHT_CURVE[skyLevel];
+        float torch = LIGHT_CURVE[torchLevel];
+        return sky <= torch ? 0f : (sky - torch) / sky;
+    }
+
+    /** Nhet ti le anh sang troi vao nua tren/nua duoi cua alpha, tuy khoi co lac theo gio khong. */
+    private static float packSkyShare(float share, boolean windy) {
+        float clamped = Math.max(0f, Math.min(0.999f, share));
+        return (windy ? 0f : 0.5f) + clamped * 0.5f;
     }
 
     private static int count(boolean flag) {

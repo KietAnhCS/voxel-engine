@@ -1,6 +1,125 @@
 @echo off
-echo Dang mo 2 cua so game Voxel... dang nhap 2 tai khoan khac nhau, cung Ma map 123.
-set CP=C:\Users\kelly\OneDrive\Desktop\voxel-engine\desktop\build\classes\java\main;C:\Users\kelly\OneDrive\Desktop\voxel-engine\desktop\build\resources\main;C:\Users\kelly\OneDrive\Desktop\voxel-engine\core\build\libs\core-1.0.jar;C:\Users\kelly\.gradle\caches\modules-2\files-2.1\com.badlogicgames.gdx\gdx-backend-lwjgl\1.12.1\82ef2637694ab920beeaa8e808e33dd3c360d80f\gdx-backend-lwjgl-1.12.1.jar;C:\Users\kelly\.gradle\caches\modules-2\files-2.1\com.badlogicgames.gdx\gdx-platform\1.12.1\5737be5ce3a4e8f9f77c2d9ab95ab479f9c3705f\gdx-platform-1.12.1-natives-desktop.jar;C:\Users\kelly\.gradle\caches\modules-2\files-2.1\com.badlogicgames.gdx\gdx-bullet-platform\1.12.1\9803f4ec26f496a2ecfa09e800f4bfdaea599b0\gdx-bullet-platform-1.12.1-natives-desktop.jar;C:\Users\kelly\.gradle\caches\modules-2\files-2.1\com.badlogicgames.gdx\gdx-box2d-platform\1.12.1\4e82228fcdd2e8a7673fe7952588acfdb33d7820\gdx-box2d-platform-1.12.1-natives-desktop.jar;C:\Users\kelly\.gradle\caches\modules-2\files-2.1\com.badlogicgames.gdx\gdx-bullet\1.12.1\2455169dcc8cea63a63ee94e8260f644dce63732\gdx-bullet-1.12.1.jar;C:\Users\kelly\.gradle\caches\modules-2\files-2.1\com.badlogicgames.box2dlights\box2dlights\1.5\6902dbcd250c95a27973aa24a147a95b3828d348\box2dlights-1.5.jar;C:\Users\kelly\.gradle\caches\modules-2\files-2.1\com.badlogicgames.gdx\gdx-box2d\1.12.1\6c37ed04f97d062f1bdc4afe1f583182e539a269\gdx-box2d-1.12.1.jar;C:\Users\kelly\.gradle\caches\modules-2\files-2.1\com.badlogicgames.gdx\gdx\1.12.1\a2d066c09329c457045c284c42d6f37122840aa\gdx-1.12.1.jar;C:\Users\kelly\.gradle\caches\modules-2\files-2.1\com.google.guava\guava\31.1-jre\60458f877d055d0c9114d9e1a2efb737b4bc282c\guava-31.1-jre.jar;C:\Users\kelly\.gradle\caches\modules-2\files-2.1\org.lwjgl.lwjgl\lwjgl\2.9.3\3df168ac74e4a8c96562cdff24ad352e255bf89c\lwjgl-2.9.3.jar;C:\Users\kelly\.gradle\caches\modules-2\files-2.1\com.badlogicgames.jlayer\jlayer\1.0.1-gdx\7cca83cec5c1b2f011362f4d85aabd71a73b049d\jlayer-1.0.1-gdx.jar;C:\Users\kelly\.gradle\caches\modules-2\files-2.1\org.jcraft\jorbis\0.0.17\8872d22b293e8f5d7d56ff92be966e6dc28ebdc6\jorbis-0.0.17.jar;C:\Users\kelly\.gradle\caches\modules-2\files-2.1\com.badlogicgames.gdx\gdx-jnigen-loader\2.3.1\2d472f69243631fbcb3d4c3f93dd2e137a6cb084\gdx-jnigen-loader-2.3.1.jar;C:\Users\kelly\.gradle\caches\modules-2\files-2.1\com.google.guava\failureaccess\1.0.1\1dcf1de382a0bf95a3d8b0849546c88bac1292c9\failureaccess-1.0.1.jar;C:\Users\kelly\.gradle\caches\modules-2\files-2.1\com.google.guava\listenablefuture\9999.0-empty-to-avoid-conflict-with-guava\b421526c5f297295adef1c886e5246c39d4ac629\listenablefuture-9999.0-empty-to-avoid-conflict-with-guava.jar;C:\Users\kelly\.gradle\caches\modules-2\files-2.1\com.google.code.findbugs\jsr305\3.0.2\25ea2e8b0c338a877313bd4672d3fe056ea78f0d\jsr305-3.0.2.jar;C:\Users\kelly\.gradle\caches\modules-2\files-2.1\org.checkerframework\checker-qual\3.12.0\d5692f0526415fcc6de94bb5bfbd3afd9dd3b3e5\checker-qual-3.12.0.jar;C:\Users\kelly\.gradle\caches\modules-2\files-2.1\com.google.errorprone\error_prone_annotations\2.11.0\c5a0ace696d3f8b1c1d8cc036d8c03cc0cbe6b69\error_prone_annotations-2.11.0.jar;C:\Users\kelly\.gradle\caches\modules-2\files-2.1\com.google.j2objc\j2objc-annotations\1.3\ba035118bc8bac37d7eff77700720999acd9986d\j2objc-annotations-1.3.jar;C:\Users\kelly\.gradle\caches\modules-2\files-2.1\org.lwjgl.lwjgl\lwjgl-platform\2.9.3\fbc2afb3e288578e9942578decb6291a490549a0\lwjgl-platform-2.9.3-natives-windows.jar;C:\Users\kelly\.gradle\caches\modules-2\files-2.1\org.lwjgl.lwjgl\lwjgl-platform\2.9.3\b1eafe80093381c56415731e1d64279e6140bcd0\lwjgl-platform-2.9.3-natives-linux.jar;C:\Users\kelly\.gradle\caches\modules-2\files-2.1\org.lwjgl.lwjgl\lwjgl-platform\2.9.3\6686cf6ddaa20b4290aa6599a09bc0d17369be05\lwjgl-platform-2.9.3-natives-osx.jar;C:\Users\kelly\.gradle\caches\modules-2\files-2.1\net.java.jinput\jinput\2.0.5\39c7796b469a600f72380316f6b1f11db6c2c7c4\jinput-2.0.5.jar;C:\Users\kelly\.gradle\caches\modules-2\files-2.1\net.java.jutils\jutils\1.0.0\e12fe1fda814bd348c1579329c86943d2cd3c6a6\jutils-1.0.0.jar;C:\Users\kelly\.gradle\caches\modules-2\files-2.1\net.java.jinput\jinput-platform\2.0.5\7ff832a6eb9ab6a767f1ade2b548092d0fa64795\jinput-platform-2.0.5-natives-linux.jar;C:\Users\kelly\.gradle\caches\modules-2\files-2.1\net.java.jinput\jinput-platform\2.0.5\385ee093e01f587f30ee1c8a2ee7d408fd732e16\jinput-platform-2.0.5-natives-windows.jar;C:\Users\kelly\.gradle\caches\modules-2\files-2.1\net.java.jinput\jinput-platform\2.0.5\53f9c919f34d2ca9de8c51fc4e1e8282029a9232\jinput-platform-2.0.5-natives-osx.jar
-start "Voxel Player 1" /D "C:\Users\kelly\OneDrive\Desktop\voxel-engine\assets" "C:\Program Files\Eclipse Adoptium\jdk-17.0.19.10-hotspot\bin\java.exe" --add-opens java.base/java.nio=ALL-UNNAMED --add-opens java.base/sun.nio.ch=ALL-UNNAMED -cp "%CP%" com.voxel.desktop.DesktopLauncher
-timeout /t 2 /nobreak >nul
-start "Voxel Player 2" /D "C:\Users\kelly\OneDrive\Desktop\voxel-engine\assets" "C:\Program Files\Eclipse Adoptium\jdk-17.0.19.10-hotspot\bin\java.exe" --add-opens java.base/java.nio=ALL-UNNAMED --add-opens java.base/sun.nio.ch=ALL-UNNAMED -cp "%CP%" com.voxel.desktop.DesktopLauncher
+setlocal enabledelayedexpansion
+title Voxel Engine
+
+:: ==================================================================
+::  Mot lenh lam het: build lai game, build + bat may chu, roi mo game.
+::
+::  Cach dung:
+::     choi.bat        -> mo 2 cua so (de thu choi chung)
+::     choi.bat 1      -> mo 1 cua so
+::     choi.bat 2 sach -> build lai tu dau (khi nghi build cu bi loi)
+:: ==================================================================
+
+set SO_CUA_SO=%~1
+if "%SO_CUA_SO%"=="" set SO_CUA_SO=2
+set KIEU_BUILD=%~2
+
+:: Moi duong dan deu suy ra tu cho dat file .bat nay, khong ghi cung o dia nao ca.
+set GOC=%~dp0
+if "%GOC:~-1%"=="\" set GOC=%GOC:~0,-1%
+set ASSETS=%GOC%\assets
+set THAMSO=%GOC%\desktop\build\launch-args.txt
+
+:: Tim java: uu tien JAVA_HOME, khong co thi lay java trong PATH.
+if defined JAVA_HOME (
+    set JAVA=%JAVA_HOME%\bin\java.exe
+) else (
+    set JAVA=java
+)
+
+cd /d "%GOC%"
+
+:: ------------------------------------------------------------------
+echo.
+echo [1/3] Build game...
+echo ------------------------------------------------------------------
+set VIEC=:core:jar :desktop:classes :desktop:writeLaunchArgs
+if /i "%KIEU_BUILD%"=="sach" set VIEC=clean %VIEC%
+
+:: Goi bang duong dan day du: co may khong cho tim lenh trong thu muc hien tai.
+call "%GOC%\gradlew.bat" %VIEC%
+if errorlevel 1 goto :loi_build
+if not exist "%THAMSO%" goto :loi_thamso
+
+:: ------------------------------------------------------------------
+echo.
+echo [2/3] Cap nhat va bat may chu...
+echo ------------------------------------------------------------------
+where docker >nul 2>nul
+if errorlevel 1 (
+    echo [Chu y] May nay chua co Docker nen khong bat duoc may chu.
+    echo         Khong co may chu thi khong dang nhap duoc.
+    goto :mo_game
+)
+
+:: "up -d --build" tu build lai anh khi ma nguon server doi, khong doi thi dung cache
+:: nen chay lai rat nhanh. Container dang chay san thi no giu nguyen.
+docker compose up -d --build
+if errorlevel 1 (
+    echo [Chu y] Bat may chu that bai. Da mo Docker Desktop chua?
+    goto :mo_game
+)
+
+:: Cho toi khi may chu chiu tra loi (toi da 60 giay) roi moi mo game,
+:: neu khong man hinh dang nhap se bao loi mang oan.
+echo Dang cho may chu san sang...
+set /a DEM=0
+:cho_may_chu
+curl -s -o nul -m 2 http://localhost:8080/ >nul 2>nul
+if not errorlevel 1 goto :may_chu_ok
+set /a DEM+=1
+if !DEM! geq 30 (
+    echo [Chu y] May chu chua tra loi sau 60 giay - cu mo game, dang nhap co the loi.
+    goto :mo_game
+)
+ping -n 3 127.0.0.1 >nul
+goto :cho_may_chu
+
+:may_chu_ok
+echo May chu san sang.
+
+:: ------------------------------------------------------------------
+:mo_game
+echo.
+echo [3/3] Mo %SO_CUA_SO% cua so game...
+echo ------------------------------------------------------------------
+echo Dang nhap %SO_CUA_SO% tai khoan KHAC nhau, cung mot Ma map (vi du 123).
+echo Vao game la che do SINH TON, tui do trong.
+echo.
+echo   Chuot trai       dao khoi / danh zombie va nguoi choi khac
+echo   Chuot phai       dat khoi (giu 1.2 giay de AN qua tao)
+echo   E                tui do: shift+bam chuyen nhanh, keo chuot chia deu,
+echo                    bam dup gom khoi cung loai
+echo   Phim cach        nhay, o duoi nuoc thi boi len
+echo   F5 / F3          doi goc nhin / bang thong tin
+echo   /time night      nhay toi ban dem cho zombie ra
+echo.
+
+rem Cho mot chut giua hai cua so. Dung "ping" thay cho "timeout" vi timeout bao loi khi bat
+rem duoc goi tu cua so khong co ban phim. Trong khoi for phai dung "rem", KHONG dung "::" -
+rem cmd se tuong "::" la ten o dia va in ra "The system cannot find the drive specified".
+for /l %%i in (1,1,%SO_CUA_SO%) do (
+    start "Voxel Player %%i" /D "%ASSETS%" "%JAVA%" "@%THAMSO%" com.voxel.desktop.DesktopLauncher
+    ping -n 3 127.0.0.1 >nul
+)
+
+echo Da mo xong. Dong cua so nay luc nao cung duoc.
+endlocal
+exit /b 0
+
+:loi_build
+echo.
+echo [Loi] Build game that bai - xem loi code o tren.
+echo       Neu nghi build cu bi hong thi chay:  choi.bat 2 sach
+pause
+endlocal
+exit /b 1
+
+:loi_thamso
+echo.
+echo [Loi] Khong thay "%THAMSO%".
+echo       Task :desktop:writeLaunchArgs chua chay duoc.
+pause
+endlocal
+exit /b 1

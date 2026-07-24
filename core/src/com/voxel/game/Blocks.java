@@ -41,6 +41,11 @@ public final class Blocks {
     public final Block deadBush;
     public final Block flower;
     public final Block flowerYellow;
+    /** Qua tao: do an, rung ra khi pha la cay. Tam dung hinh la cay. */
+    public final Block apple;
+
+    /** An mot qua tao day len bao nhieu nac do no (Minecraft cung la 4 nac = 2 dui ga). */
+    private static final int APPLE_FOOD = 4;
 
     private final Block[] waterLevels = new Block[Block.MAX_FLUID_LEVEL + 1];
 
@@ -182,6 +187,25 @@ public final class Blocks {
                 .translucent()
                 .passable()
                 .windAffected());
+
+        // TAO: mon an duy nhat hien co, rung ra khi pha la cay. Tam muon hinh la cay lam
+        // hinh dai dien cho tien nhin; do la DO AN nen khong dat xuong the gioi duoc
+        // (xem PlaySession.blockToPlace), giu chuot phai de an.
+        apple = registry.register(Block.named("apple")
+                .geometry(CrossGeometry.INSTANCE)
+                .texture("textures/leaves_oak")
+                .translucent()
+                .passable());
+    }
+
+    /** Do an co day len bao nhieu nac do no khi an mot cai. */
+    public int foodValue(Block block) {
+        return block == apple ? APPLE_FOOD : 0;
+    }
+
+    /** True neu day la mon an duoc (giu chuot phai de an), khong phai khoi de xay. */
+    public boolean isFood(Block block) {
+        return foodValue(block) > 0;
     }
 
     /** Water blocks by level for FluidSimulator: [0] air ... [8] the source block. */
@@ -198,7 +222,7 @@ public final class Blocks {
                 grass, dirt, stone, cobblestone, sand, sandstone, gravel,
                 wood, birchWood, planks, brick, leaves, pineLeaves,
                 snow, ice, cactus, lamp, torch, water,
-                tuft, deadBush, flower, flowerYellow
+                tuft, deadBush, flower, flowerYellow, apple
         };
     }
 }

@@ -5,6 +5,9 @@ import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.voxel.engine.block.Block;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * Bang tui do khi bam E.
  *
@@ -42,6 +45,9 @@ public final class InventoryScreen {
     private static final float ARROW_X = 135f;
     private static final float RESULT_X = 153f;
     private static final float RESULT_Y = 27f;
+    /** Hai cu bam cach nhau duoi bay nhieu mili giay thi tinh la mot cu bam dup. */
+    private static final long DOUBLE_CLICK_MS = 260L;
+
     private static final float STORAGE_X = 7f;
     private static final float STORAGE_Y = 83f;
     private static final float HOTBAR_Y = 141f;
@@ -57,6 +63,13 @@ public final class InventoryScreen {
     private boolean open;
     private float panelX;
     private float panelY;
+
+    /** Cac o con tro da di qua trong luot keo hien tai, de chia deu chong do luc nha chuot. */
+    private final List<Slot> dragged = new ArrayList<Slot>();
+    private boolean dragging;
+    private boolean dragRight;
+    /** Luc bam chuot trai lan truoc, de nhan ra cu bam dup. */
+    private long lastClickAt;
 
     public InventoryScreen(Inventory inventory, Crafting crafting, Block[] palette,
                            ItemRenderer items, BitmapFont font) {
@@ -205,38 +218,260 @@ public final class InventoryScreen {
     // -------------------------------------------------------------- bat chuot
 
     /**
+     * Bam chuot xuong mot o.
+     *
+     * <p>Neu tay dang cam do thi CHUA lam gi ngay ma mo mot luot "keo": moi o con tro di
+     * qua se duoc ghi lai, den luc nha chuot moi chia deu chong do cho tat ca cac o do -
+     * dung nhu Minecraft. Nha ngay tai cho (chi mot o) thi coi nhu mot cu bam binh thuong.
+     *
      * @param mouseY toa do y da doi ve he giao dien (goc o duoi man hinh)
+     * @param shift  dang giu SHIFT - chuyen nhanh ca chong do
      * @return true neu cu bam roi trung mot o
      */
-    public boolean click(float mouseX, float mouseY, int screenWidth, int screenHeight, GameMode mode) {
+    public boolean touchDown(float mouseX, float mouseY, int screenWidth, int screenHeight,
+                             GameMode mode, boolean rightButton, boolean shift) {
         if (!open) {
             return false;
         }
         layout(screenWidth, screenHeight);
-        float size = px(CELL);
+        Slot slot = locate(mouseX, mouseY, mode);
+        if (slot == null) {
+            return false;
+        }
 
-        // O ket qua che tao: chi lay ra duoc, khong bo vao duoc.
-        if (inside(mouseX, mouseY, slotX(RESULT_X), slotY(RESULT_Y, CELL), size)) {
-            ItemStack made = crafting.take();
-            if (made != null) {
-                for (int i = 0; i < made.count(); i++) {
-                    inventory.add(made.block());
-                }
-            }
+        if (shift) {
+            quickMove(slot);
+            lastClickAt = 0L;
             return true;
         }
 
+        // Bam dup chuot trai khi dang cam do: gom het khoi cung loai lai thanh mot chong.
+        long now = System.currentTimeMillis();
+        boolean doubleClick = !rightButton
+                && now - lastClickAt <= DOUBLE_CLICK_MS
+                && inventory.carried() != null;
+        lastClickAt = rightButton ? 0L : now;
+        if (doubleClick) {
+            inventory.collectIntoCarried();
+            return true;
+        }
+
+        if (inventory.carried() != null && slot.canReceive()) {
+            dragging = true;
+            dragRight = rightButton;
+            dragged.clear();
+            dragged.add(slot);
+            return true;
+        }
+        apply(slot, rightButton);
+        return true;
+    }
+
+    /** Con tro truot qua mot o moi trong luc dang giu chuot: ghi o do vao danh sach chia. */
+    public void touchDragged(float mouseX, float mouseY, int screenWidth, int screenHeight, GameMode mode) {
+        if (!open || !dragging) {
+            return;
+        }
+        layout(screenWidth, screenHeight);
+        Slot slot = locate(mouseX, mouseY, mode);
+        if (slot == null || !slot.canReceive()) {
+            return;
+        }
+        for (Slot visited : dragged) {
+            if (visited.sameAs(slot)) {
+                return;
+            }
+        }
+        dragged.add(slot);
+    }
+
+    /** Nha chuot: keo qua nhieu o thi chia deu, chi mot o thi la cu bam binh thuong. */
+    public void touchUp() {
+        if (!dragging) {
+            return;
+        }
+        dragging = false;
+        if (dragged.size() >= 2) {
+            distribute();
+        } else if (dragged.size() == 1) {
+            apply(dragged.get(0), dragRight);
+        }
+        dragged.clear();
+    }
+
+    /**
+     * Chia deu chong do dang cam cho tat ca cac o vua keo qua. O nao khong nhan duoc
+     * (dang chua loai khac, hoac da day) thi bi bo qua, phan thua van dinh tren con tro.
+     */
+    private void distribute() {
+        ItemStack carried = inventory.carried();
+        if (carried == null || carried.isEmpty()) {
+            return;
+        }
+        Block block = carried.block();
+        int share = Math.max(1, carried.count() / dragged.size());
+
+        for (Slot slot : dragged) {
+            if (carried.count() <= 0) {
+                break;
+            }
+            int put = Math.min(share, carried.count());
+            ItemStack target = slot.stack();
+            if (target == null) {
+                slot.setStack(new ItemStack(block, put));
+            } else if (target.isSameBlock(block)) {
+                put -= target.add(put);
+                slot.setStack(target);
+            } else {
+                continue;  // o nay dang chua loai khac - bo qua
+            }
+            for (int i = 0; i < put; i++) {
+                carried.shrink();
+            }
+        }
+        inventory.setCarried(carried.isEmpty() ? null : carried);
+    }
+
+    /** Mot cu bam binh thuong len mot o. */
+    private void apply(Slot slot, boolean rightButton) {
+        switch (slot.area) {
+            case RESULT:
+                takeResult();
+                break;
+            case PALETTE:
+                inventory.setCarried(new ItemStack(palette[slot.index], ItemStack.MAX_COUNT));
+                break;
+            case CRAFT:
+                if (rightButton) {
+                    placeOneInCraft(slot.index);
+                } else {
+                    ItemStack carried = inventory.carried();
+                    inventory.setCarried(crafting.get(slot.index));
+                    crafting.set(slot.index, carried);
+                }
+                break;
+            default:
+                if (rightButton) {
+                    inventory.clickSlotRight(slot.index);
+                } else {
+                    inventory.clickSlot(slot.index);
+                }
+                break;
+        }
+    }
+
+    /** Chuot phai vao o che tao: tha xuong dung mot khoi. */
+    private void placeOneInCraft(int index) {
+        ItemStack carried = inventory.carried();
+        if (carried == null || carried.isEmpty()) {
+            return;
+        }
+        ItemStack target = crafting.get(index);
+        if (target == null) {
+            crafting.set(index, new ItemStack(carried.block(), 1));
+        } else if (target.isSameBlock(carried.block()) && target.room() > 0) {
+            target.add(1);
+            crafting.set(index, target);
+        } else {
+            return;
+        }
+        carried.shrink();
+        inventory.setCarried(carried.isEmpty() ? null : carried);
+    }
+
+    /** Lay mon vua che tao ra, do thang vao tui. */
+    private void takeResult() {
+        ItemStack made = crafting.take();
+        if (made != null) {
+            inventory.addStack(made.block(), made.count());
+        }
+    }
+
+    /**
+     * Shift + bam: o ket qua thi che tao lien tuc cho toi khi het nguyen lieu hoac day tui,
+     * o che tao thi tra do ve tui, o tui thi nhay qua khu vuc con lai.
+     */
+    private void quickMove(Slot slot) {
+        switch (slot.area) {
+            case RESULT:
+                // Che tao het co: moi vong lam mot me, dung khi khong con cong thuc nao khop.
+                while (crafting.result() != null) {
+                    ItemStack made = crafting.take();
+                    if (made == null || inventory.addStack(made.block(), made.count()) > 0) {
+                        break;  // tui day roi, thoi.
+                    }
+                }
+                break;
+            case CRAFT:
+                ItemStack stack = crafting.get(slot.index);
+                if (stack != null) {
+                    int leftOver = inventory.addStack(stack.block(), stack.count());
+                    crafting.set(slot.index, leftOver > 0 ? new ItemStack(stack.block(), leftOver) : null);
+                }
+                break;
+            case PALETTE:
+                inventory.addStack(palette[slot.index], ItemStack.MAX_COUNT);
+                break;
+            default:
+                inventory.quickMove(slot.index);
+                break;
+        }
+    }
+
+    // ------------------------------------------------------- tim o duoi con tro
+
+    /** Khu vuc ma mot o thuoc ve. */
+    private enum Area { CRAFT, RESULT, BAG, PALETTE }
+
+    /**
+     * Mot o dang nam duoi con tro chuot. Nho co lop nay ma phan bat chuot khong can biet
+     * o do la cua tui do hay cua bang che tao - doc ghi deu qua {@link #stack}/{@link #setStack}.
+     */
+    private final class Slot {
+        final Area area;
+        final int index;
+
+        Slot(Area area, int index) {
+            this.area = area;
+            this.index = index;
+        }
+
+        boolean sameAs(Slot other) {
+            return area == other.area && index == other.index;
+        }
+
+        /** O ket qua che tao va kho khoi sang tao chi lay ra duoc, khong do vao duoc. */
+        boolean canReceive() {
+            return area == Area.CRAFT || area == Area.BAG;
+        }
+
+        ItemStack stack() {
+            return area == Area.CRAFT ? crafting.get(index) : inventory.get(index);
+        }
+
+        void setStack(ItemStack stack) {
+            if (area == Area.CRAFT) {
+                crafting.set(index, stack);
+            } else {
+                inventory.set(index, stack);
+            }
+        }
+    }
+
+    /** O nao dang nam duoi con tro, hoac null neu tro vao cho trong. */
+    private Slot locate(float mouseX, float mouseY, GameMode mode) {
+        float size = px(CELL);
+
+        if (inside(mouseX, mouseY, slotX(RESULT_X), slotY(RESULT_Y, CELL), size)) {
+            return new Slot(Area.RESULT, 0);
+        }
         for (int i = 0; i < Crafting.GRID; i++) {
             float x = slotX(CRAFT_X + (i % 2) * CELL);
             float y = slotY(CRAFT_Y + (i / 2) * CELL, CELL);
             if (inside(mouseX, mouseY, x, y, size)) {
-                ItemStack carried = inventory.carried();
-                inventory.setCarried(crafting.get(i));
-                crafting.set(i, carried);
-                return true;
+                return new Slot(Area.CRAFT, i);
             }
         }
-
         for (int row = 0; row < Inventory.STORAGE_ROWS; row++) {
             for (int column = 0; column < Inventory.HOTBAR_SIZE; column++) {
                 float x = slotX(STORAGE_X + column * CELL);
@@ -245,24 +480,18 @@ public final class InventoryScreen {
                     continue;
                 }
                 int index = row * Inventory.HOTBAR_SIZE + column;
-                if (mode.isCreative()) {
-                    if (index < palette.length) {
-                        inventory.setCarried(new ItemStack(palette[index], ItemStack.MAX_COUNT));
-                    }
-                } else {
-                    inventory.clickSlot(Inventory.HOTBAR_SIZE + index);
+                if (!mode.isCreative()) {
+                    return new Slot(Area.BAG, Inventory.HOTBAR_SIZE + index);
                 }
-                return true;
+                return index < palette.length ? new Slot(Area.PALETTE, index) : null;
             }
         }
-
         for (int column = 0; column < Inventory.HOTBAR_SIZE; column++) {
             if (inside(mouseX, mouseY, slotX(STORAGE_X + column * CELL), slotY(HOTBAR_Y, CELL), size)) {
-                inventory.clickSlot(column);
-                return true;
+                return new Slot(Area.BAG, column);
             }
         }
-        return false;
+        return null;
     }
 
     private boolean inside(float mouseX, float mouseY, float x, float y, float size) {

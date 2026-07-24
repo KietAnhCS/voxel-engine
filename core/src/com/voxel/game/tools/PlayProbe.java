@@ -45,6 +45,51 @@ public final class PlayProbe {
                 inventory.get(0).count() == 64 && inventory.get(1).count() == 6);
         failed += check("removing one block", inventory.consume(blocks.stone) && inventory.get(0).count() == 63);
 
+        // --- gom do bang cu bam dup chuot ---
+        Inventory scattered = new Inventory();
+        scattered.set(0, new ItemStack(blocks.dirt, 20));
+        scattered.set(3, new ItemStack(blocks.dirt, 30));
+        scattered.set(9, new ItemStack(blocks.stone, 40));
+        scattered.set(12, new ItemStack(blocks.dirt, 25));
+        scattered.setCarried(new ItemStack(blocks.dirt, 5));
+        scattered.collectIntoCarried();
+        failed += check("bam dup -> gom dat vao mot chong day 64",
+                scattered.carried().count() == 64);
+        failed += check("bam dup -> khong dung toi loai khac",
+                scattered.get(9) != null && scattered.get(9).count() == 40);
+        failed += check("bam dup -> phan dat con lai van nam trong tui",
+                20 + 30 + 25 + 5 - 64 == countOf(scattered, blocks.dirt));
+
+        // --- shift + bam: chuyen nhanh giua thanh nhanh va kho chua ---
+        Inventory moving = new Inventory();
+        moving.set(0, new ItemStack(blocks.planks, 12));
+        moving.quickMove(0);
+        failed += check("shift+bam o thanh nhanh -> do bay len kho chua",
+                moving.get(0) == null && moving.get(9) != null && moving.get(9).count() == 12);
+
+        // --- chuot phai: nhat mot nua / tha xuong mot cai ---
+        Inventory splitting = new Inventory();
+        splitting.set(0, new ItemStack(blocks.stone, 9));
+        splitting.clickSlotRight(0);
+        failed += check("chuot phai tay khong -> cam mot nua (lam tron len)",
+                splitting.carried().count() == 5 && splitting.get(0).count() == 4);
+        splitting.clickSlotRight(1);
+        failed += check("chuot phai dang cam do -> tha xuong dung mot cai",
+                splitting.get(1).count() == 1 && splitting.carried().count() == 4);
+
+        // --- do an ---
+        failed += check("qua tao la do an", blocks.isFood(blocks.apple));
+        failed += check("khoi dat khong phai do an", !blocks.isFood(blocks.dirt));
+
+        PlayerStats hungryEater = new PlayerStats();
+        for (int i = 0; i < 200; i++) {
+            hungryEater.update(1f, GameMode.SURVIVAL, true, 60f, false, false, true);
+        }
+        int beforeEating = hungryEater.food();
+        hungryEater.eat(blocks.foodValue(blocks.apple));
+        failed += check("an mot qua tao -> day len 4 nac do no",
+                hungryEater.food() == Math.min(PlayerStats.MAX_FOOD, beforeEating + 4));
+
         // --- health, hunger, experience ---
         PlayerStats stats = new PlayerStats();
         stats.addExperience(7);
@@ -68,6 +113,18 @@ public final class PlayProbe {
                 drowning.air() == 0f && drowning.health() < PlayerStats.MAX_HEALTH);
 
         System.out.println(failed == 0 ? "ALL CHECKS PASSED" : failed + " CHECKS FAILED");
+    }
+
+    /** Dem tong so khoi loai nay dang nam trong tui (khong tinh cai dang cam tren tay). */
+    private static int countOf(Inventory inventory, com.voxel.engine.block.Block block) {
+        int total = 0;
+        for (int i = 0; i < inventory.size(); i++) {
+            ItemStack stack = inventory.get(i);
+            if (stack != null && stack.isSameBlock(block)) {
+                total += stack.count();
+            }
+        }
+        return total;
     }
 
     private static int check(String what, boolean ok) {

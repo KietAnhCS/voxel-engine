@@ -25,7 +25,6 @@ public final class PlayerController extends InputAdapter {
 
     private long lastJumpTapMillis;
     private boolean jumpHeld;
-    private boolean fullscreen;
     /** Tat khi dang mo tui do / khung chat: phim va chuot luc do thuoc ve giao dien. */
     private boolean enabled = true;
     /** Che do sinh ton khong cho bay, nen chan luon cu nhan dup phim SPACE. */
@@ -150,12 +149,6 @@ public final class PlayerController extends InputAdapter {
         if (keycode == Input.Keys.ESCAPE) {
             Gdx.input.setCursorCatched(!Gdx.input.isCursorCatched());
         }
-        if (keycode == Input.Keys.F) {
-            toggleFullscreen();
-        }
-        if (keycode == Input.Keys.Q) {
-            Gdx.app.exit();
-        }
         return true;
     }
 
@@ -186,12 +179,4 @@ public final class PlayerController extends InputAdapter {
         return true;
     }
 
-    private void toggleFullscreen() {
-        if (fullscreen) {
-            Gdx.graphics.setWindowedMode(1280, 720);
-        } else {
-            Gdx.graphics.setFullscreenMode(Gdx.graphics.getDisplayMode());
-        }
-        fullscreen = !fullscreen;
-    }
 }

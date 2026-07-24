@@ -73,8 +73,8 @@ public final class LoginScreen extends ScreenAdapter {
         statusLabel = new Label("", new Label.LabelStyle(font, new Color(1f, 0.8f, 0.4f, 1f)));
         statusLabel.setWrap(true);
 
-        loginButton = textButton("Dang nhap", tint(0.20f, 0.55f, 0.30f, 1f), tint(0.14f, 0.40f, 0.22f, 1f));
-        registerButton = textButton("Dang ky", tint(0.24f, 0.40f, 0.62f, 1f), tint(0.16f, 0.28f, 0.46f, 1f));
+        loginButton = textButton("Login", tint(0.20f, 0.55f, 0.30f, 1f), tint(0.14f, 0.40f, 0.22f, 1f));
+        registerButton = textButton("Register", tint(0.24f, 0.40f, 0.62f, 1f), tint(0.16f, 0.28f, 0.46f, 1f));
 
         loginButton.addListener(new ChangeListener() {
             @Override
@@ -91,7 +91,7 @@ public final class LoginScreen extends ScreenAdapter {
 
         Label title = new Label("VOXEL ENGINE", new Label.LabelStyle(font, Color.WHITE));
         title.setFontScale(2.4f);
-        Label hint = new Label("Dang nhap roi go cung ma map de choi chung",
+        Label hint = new Label("Login to play together",
                 new Label.LabelStyle(font, new Color(0.7f, 0.7f, 0.75f, 1f)));
 
         Table table = new Table();
@@ -99,11 +99,11 @@ public final class LoginScreen extends ScreenAdapter {
         table.center();
         table.add(title).padBottom(6f).row();
         table.add(hint).padBottom(28f).row();
-        table.add(new Label("Ten dang nhap", labelStyle())).left().padBottom(4f).row();
+        table.add(new Label("Username", labelStyle())).left().padBottom(4f).row();
         table.add(usernameField).width(360f).height(44f).padBottom(16f).row();
-        table.add(new Label("Mat khau", labelStyle())).left().padBottom(4f).row();
+        table.add(new Label("Password", labelStyle())).left().padBottom(4f).row();
         table.add(passwordField).width(360f).height(44f).padBottom(16f).row();
-        table.add(new Label("Ma map (vd: 123)", labelStyle())).left().padBottom(4f).row();
+        table.add(new Label("MMap Code", labelStyle())).left().padBottom(4f).row();
         table.add(codeField).width(360f).height(44f).padBottom(22f).row();
 
         Table buttons = new Table();
@@ -136,7 +136,7 @@ public final class LoginScreen extends ScreenAdapter {
         passwordField.setText(pass == null ? "" : pass);
         codeField.setText(code);
         setBusy(true);
-        setStatus("Tu dong vao map " + code + " (demo)...", false);
+        setStatus("Auto-joining map " + code + " (demo)...", false);
 
         // Thu dang ky truoc; neu tai khoan da co thi chuyen sang dang nhap.
         new Thread(new Runnable() {
@@ -180,12 +180,12 @@ public final class LoginScreen extends ScreenAdapter {
         String typedCode = codeField.getText().trim();
         final String code = typedCode.isEmpty() ? "123" : typedCode;
         if (username.isEmpty() || password.isEmpty()) {
-            setStatus("Nhap day du ten dang nhap va mat khau", true);
+            setStatus("Please fill in all fields", true);
             return;
         }
 
         setBusy(true);
-        setStatus("Dang ket noi may chu...", false);
+        setStatus("Connecting to server...", false);
 
         // Goi mang tren luong rieng de KHONG treo khung hinh. Xong thi quay lai luong game
         // bang postRunnable de doi man hinh mot cach an toan.

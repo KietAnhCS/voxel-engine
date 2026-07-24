@@ -20,6 +20,7 @@ public final class TerrainNoise {
     private final SimplexNoise wormField;
     private final SimplexNoise riverField;
     private final SimplexNoise lakeField;
+    private final SimplexNoise entranceField;
 
     private final long seed;
     private final int seaLevel;
@@ -38,6 +39,7 @@ public final class TerrainNoise {
         this.wormField = new SimplexNoise(seed * 23L + 86028121L);
         this.riverField = new SimplexNoise(seed * 29L + 122949823L);
         this.lakeField = new SimplexNoise(seed * 37L + 217645199L);
+        this.entranceField = new SimplexNoise(seed * 41L + 512927377L);
     }
 
     /** Continent: negative is ocean, positive is land. */
@@ -96,6 +98,15 @@ public final class TerrainNoise {
     /** "Cheese" caves: rounded hollow bubbles. */
     public double cave(int x, int y, int z) {
         return caveField.noise(x * 0.023, y * 0.040, z * 0.023);
+    }
+
+    /**
+     * "Cua hang": mot vung nhieu 2D thoai, gia tri cang cao thi cho do cang de tro mieng hang
+     * len mat dat. Tan so 0.012 -> moi vung rong khoang 80 khoi, du lon de mot duong ham
+     * dam xuyen qua ma khong lam mat dat lo cho lo cho.
+     */
+    public double entrance(int x, int z) {
+        return entranceField.fractal2d(x, z, 2, 0.012, 2.0, 0.5);
     }
 
     /** Noise that controls the crawling direction of a perlin worm. */

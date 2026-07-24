@@ -7,8 +7,10 @@ import com.voxel.engine.world.Chunk;
 import com.voxel.engine.world.ChunkStorage;
 import com.voxel.engine.world.ChunkWriter;
 import com.voxel.game.Blocks;
+import com.voxel.game.terrain.ColumnSample;
 import com.voxel.game.terrain.OverworldChunkFactory;
 import com.voxel.game.terrain.TerrainNoise;
+import com.voxel.game.terrain.TerrainShaper;
 import com.voxel.game.terrain.biome.Biome;
 import com.voxel.game.terrain.biome.BiomeSource;
 
@@ -34,8 +36,10 @@ public final class WorldProbe {
     private WorldProbe() {
     }
 
+    /** Tham so: [hat giong] [ban kinh so chunk]. */
     public static void main(String[] args) {
         long seed = args.length > 0 ? Long.parseLong(args[0]) : 20260722L;
+        int radius = args.length > 1 ? Integer.parseInt(args[1]) : RADIUS;
 
         EngineConfig config = new EngineConfig(CHUNK_SIZE, WORLD_HEIGHT, 8, SEA_LEVEL, seed, 1);
         BlockRegistry registry = new BlockRegistry();
@@ -52,14 +56,20 @@ public final class WorldProbe {
         long cavities = 0;
         long trees = 0;
         long plants = 0;
+        /** So cot ma hang an thung len tan mat dat - tuc mieng hang. */
+        long caveMouths = 0;
+        long columns = 0;
         int minHeight = Integer.MAX_VALUE;
         int maxHeight = Integer.MIN_VALUE;
+
+        TerrainShaper shaper = factory.shaper();
+        ColumnSample sample = new ColumnSample();
 
         long startedAt = System.nanoTime();
         int chunkCount = 0;
 
-        for (int chunkX = -RADIUS; chunkX <= RADIUS; chunkX++) {
-            for (int chunkZ = -RADIUS; chunkZ <= RADIUS; chunkZ++) {
+        for (int chunkX = -radius; chunkX <= radius; chunkX++) {
+            for (int chunkZ = -radius; chunkZ <= radius; chunkZ++) {
                 Chunk chunk = factory.create(config, registry, chunkX, chunkZ);
                 chunk.generate(new LocalWriter(chunk, registry, blocks.air));
                 chunkCount++;
@@ -73,6 +83,18 @@ public final class WorldProbe {
                         int floor = storage.skyFloor(x, z);
                         minHeight = Math.min(minHeight, floor);
                         maxHeight = Math.max(maxHeight, floor);
+
+                        // Mieng hang: cho ma mat dat LE RA phai co dat da, gio thung mot lo
+                        // sau it nhat 3 khoi - tuc co the tut thang tu tren xuong hang.
+                        columns++;
+                        shaper.sample(chunk.originX() + x, chunk.originZ() + z, sample);
+                        int top = Math.min(WORLD_HEIGHT - 1, shaper.columnTop(sample));
+                        if (top >= 3
+                                && registry.byId(storage.blockId(x, top, z)).isAir()
+                                && registry.byId(storage.blockId(x, top - 1, z)).isAir()
+                                && registry.byId(storage.blockId(x, top - 2, z)).isAir()) {
+                            caveMouths++;
+                        }
 
                         // An underground cavity is air that still has stone above it.
                         for (int y = 1; y < floor - 1; y++) {
@@ -103,6 +125,8 @@ public final class WorldProbe {
                 + (elapsedMs / Math.max(1, chunkCount)) + " ms/chunk)");
         System.out.println("surface height    : " + minHeight + " .. " + maxHeight);
         System.out.println("underground cavities  : " + cavities);
+        System.out.println("cave mouths       : " + caveMouths + " / " + columns + " columns ("
+                + String.format("%.2f", 100.0 * caveMouths / Math.max(1, columns)) + "%)");
         System.out.println("tree trunk blocks : " + trees);
         System.out.println("grass/flowers/bush: " + plants);
         System.out.println("biome spread      :");

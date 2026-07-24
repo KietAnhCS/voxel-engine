@@ -1,27 +1,34 @@
 package com.voxel.game.mob;
 
 import com.badlogic.gdx.math.Vector3;
+import com.voxel.engine.render.WalkCycle;
 import com.voxel.engine.world.World;
+import com.voxel.game.combat.Attackable;
 
 /**
  * Mot con quai vat mang skin y het nhan vat. Giu vi tri, huong nhin va trang thai AI hien tai.
  *
  * <p>Bo nao chay theo mau <b>State</b>: moi khung hinh giao cho {@link MonsterState} hien tai
  * xu ly, no tra ve trang thai ke tiep (Idle -> Chase -> Attack). Ban than {@code Monster} chi
- * lo phan "than the": di chuyen, bam mat dat, quay mat va hoat hoa tay chan.
+ * lo phan "than the": di chuyen, bam mat dat, quay mat, hoat hoa tay chan va chiu don.
  */
-public final class Monster {
+public final class Monster implements Attackable {
 
-    private static final float WALK_ANIM_SPEED = 8f;
-    private static final float ARM_SWING_DECAY = 4.5f;
+    /** Mau toi da - bang zombie Minecraft (20 mau = 10 trai tim). */
+    public static final int MAX_HEALTH = 20;
+    /** Vet do nhap nhay bao nhieu giay sau moi cu an don. */
+    private static final float HURT_FLASH = 0.35f;
+    /** Moi giay dung ngoai nang thi mat bay nhieu mau. */
+    private static final int BURN_DAMAGE = 4;
 
     private final Vector3 position = new Vector3();
-    private float yaw;
+    /** Nhip di: chan tay vung theo quang duong di duoc (dung chung voi nguoi choi). */
+    private final WalkCycle walk = new WalkCycle();
 
-    // Hoat hoa: chan vung khi di, tay phai vung khi danh (dung chung PlayerMesh voi nguoi choi).
-    private float walkPhase;
-    private float attackSwing;
-    private boolean moving;
+    private float yaw;
+    private int health = MAX_HEALTH;
+    private float hurtTimer;
+    private float burnTimer;
 
     private MonsterState state = new IdleState();
 
@@ -31,18 +38,19 @@ public final class Monster {
 
     /** Chay mot khung hinh: giao cho trang thai AI, roi cap nhat hoat hoa tay chan. */
     public void update(MonsterContext ctx, float delta) {
-        moving = false;
+        float fromX = position.x;
+        float fromZ = position.z;
+
         MonsterState next = state.update(this, ctx, delta);
         if (next != state) {
             state = next;
         }
 
-        if (moving) {
-            walkPhase += delta * WALK_ANIM_SPEED;
-        } else {
-            walkPhase *= Math.max(0f, 1f - delta * WALK_ANIM_SPEED);
-        }
-        attackSwing = Math.max(0f, attackSwing - delta * ARM_SWING_DECAY);
+        // Di duoc bao nhieu thi vung tay chan bay nhieu - dung yen la tay chan duoi thang.
+        float dx = position.x - fromX;
+        float dz = position.z - fromZ;
+        walk.update(delta, (float) Math.sqrt(dx * dx + dz * dz));
+        hurtTimer = Math.max(0f, hurtTimer - delta);
     }
 
     /** Di ngang toi (wx,wz) voi toc do cho, bam mat dat va quay mat theo huong di. */
@@ -55,7 +63,6 @@ public final class Monster {
             position.x += dx / dist * step;
             position.z += dz / dist * step;
             yaw = (float) Math.toDegrees(Math.atan2(dx, dz));
-            moving = true;
         }
         snapToGround(world);
     }
@@ -84,7 +91,53 @@ public final class Monster {
 
     /** Vung tay phai ra mot cai (goi khi tung cu danh). */
     public void swingArm() {
-        attackSwing = 1f;
+        walk.swingArm();
+    }
+
+    /**
+     * Dung ngoai nang giua ban ngay: chay dan. Cu moi giay mat {@link #BURN_DAMAGE} mau nen
+     * sau khoang nam giay la boc hoi - dung nhu zombie Minecraft gap binh minh.
+     */
+    public void burn(float delta) {
+        burnTimer += delta;
+        while (burnTimer >= 1f) {
+            burnTimer -= 1f;
+            takeHit(BURN_DAMAGE);
+        }
+    }
+
+    // ------------------------------------------------------------- chiu don
+
+    @Override
+    public Vector3 feet() {
+        return position;
+    }
+
+    @Override
+    public void takeHit(int damage) {
+        if (damage <= 0 || isDead()) {
+            return;
+        }
+        health = Math.max(0, health - damage);
+        hurtTimer = HURT_FLASH;
+    }
+
+    @Override
+    public String displayName() {
+        return "Zombie";
+    }
+
+    public boolean isDead() {
+        return health <= 0;
+    }
+
+    /** Dang nhap nhay do vi vua an don. */
+    public boolean isHurt() {
+        return hurtTimer > 0f;
+    }
+
+    public int health() {
+        return health;
     }
 
     public Vector3 position() {
@@ -95,11 +148,7 @@ public final class Monster {
         return yaw;
     }
 
-    public float walkPhase() {
-        return walkPhase;
-    }
-
-    public float attackSwing() {
-        return attackSwing;
+    public WalkCycle walk() {
+        return walk;
     }
 }

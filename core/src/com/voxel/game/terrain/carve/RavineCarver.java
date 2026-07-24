@@ -28,7 +28,7 @@ public final class RavineCarver implements Carver {
 
     @Override
     public void carve(ChunkWriter writer, int chunkX, int chunkZ, int chunkSize, int worldHeight) {
-        CarveScope scope = new CarveScope(writer, blocks,
+        CarveScope scope = new CarveScope(writer, blocks, SurfaceGuard.withEntrances(noise),
                 writer.originX(), writer.originZ(), chunkSize, worldHeight);
 
         for (int offsetX = -CHUNK_RADIUS; offsetX <= CHUNK_RADIUS; offsetX++) {
@@ -46,13 +46,15 @@ public final class RavineCarver implements Carver {
 
         double x = sourceChunkX * chunkSize + random.nextInt(chunkSize);
         double z = sourceChunkZ * chunkSize + random.nextInt(chunkSize);
-        double y = 24 + random.nextInt(20);
+        // Dat khe nut nong hon truoc mot chut: dinh no co the cham toi lop dat mat, va o
+        // nhung vung SurfaceGuard cho phep thi khe nut xe toac ra tan tren mat dat.
+        double y = 20 + random.nextInt(18);
         double heading = random.nextDouble() * Math.PI * 2.0;
         double wobble = random.nextDouble() * 512.0;
 
         int steps = 90 + random.nextInt(70);
         double width = 2.0 + random.nextDouble() * 1.6;
-        double depth = 11.0 + random.nextDouble() * 9.0;
+        double depth = 8.0 + random.nextDouble() * 6.0;
 
         for (int step = 0; step < steps; step++) {
             heading += noise.worm(step * 0.04, wobble) * 0.20;
